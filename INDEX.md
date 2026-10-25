@@ -2,6 +2,15 @@
 
 Read this first, then `SKILL.md`, then everything in `learned/`, then the parts that apply. Keep this file accurate: update it in the same turn whenever a file is added, split, renamed or removed (section 14 of `SKILL.md`).
 
+## Two repos, never mixed
+
+| Repo | Holds | Never holds |
+|---|---|---|
+| `bobashid/Evergrowin-AI-Skill-Brain-For-Matcha-Roblox` (this repo) | The skill: `INDEX.md`, `SKILL.md`, `learned/`, `parts/`, `games/` | Game scripts, `Hub`, loaders |
+| `bobashid/roblox-matcha` | Game scripts and `Hub` — the files the user loads | Skill notes, brain files |
+
+Scripts are pushed to `roblox-matcha`. What gets learned is written here. Nothing here ever gets a loader or a `Hub` entry, and nothing there is ever treated as a skill file. If a task says "read the skill", read this repo; if it says "push the script", push to `roblox-matcha`.
+
 ## Always read
 | File | What it holds |
 |---|---|
