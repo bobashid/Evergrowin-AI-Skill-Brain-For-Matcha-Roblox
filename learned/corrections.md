@@ -1,0 +1,8 @@
+# Learned: corrections
+
+When a line anywhere in the brain turns out to be wrong, fix it in place and record one line here: date, file, what changed, evidence. Never delete a rule without a replacement or a stated reason.
+
+- 2026-10-26: Reply format after a push is now the section 2 status block in `SKILL.md` (user request). The old "loader line and nothing else" rule and the old "never edit the skill" rule are replaced by section 14 (free editing with locked rules). Evidence: user instructions, 2026-10-26.
+- 2026-10-26: `api-facts.md`, `errors.md`, `patterns.md`, `unverified.md`, `corrections.md` moved from the repo root into `learned/`. Root copies deleted in the same turn. Evidence: repo listing showed them flat while `INDEX.md` and `SKILL.md` section 14 address them as `learned/*.md`; `parts/api-facts.md` returned "path does not point to a file or directory".
+- 2026-10-26: `PATCH-2026-10-26-reply-format.md` and the root `SKILL Learned` file deleted. Both were superseded: all four patch edits are live in `SKILL.md` (sections 2, 10, 14) and the reply-format rule lives here. Correction of record: an earlier reply claimed these two were deleted when they were not - the repo listing still showed both. This entry records the actual deletion.
+- 2026-10-26: The `parts/` reference files stay flat at the repo root (`failure-protocols.md`, `hub-sync.md`, `api-memory.md`, ...). `INDEX.md` now lists the bare root names so every read resolves. Moving 12 files totalling about 119 KB by re-uploading risks silent corruption of reference text; if the `parts/` folder is wanted, move each with GitHub's web rename (pencil -> change the name field to `parts/<name>.md` -> commit) and update `INDEX.md` in the same commit.
