@@ -13,7 +13,7 @@ Scripts are pushed to `roblox-matcha`. What gets learned is written here. Nothin
 
 ## Layout right now
 
-- `BOOTSTRAP.md` is the canonical text of the bootstrap note loaded at the start of every chat. The copy in the user's skill settings is a paste of it, so editing this file is how the bootstrap gets fixed without the user touching their settings. It deliberately lists no files, only the read procedure, so brain files can be added, split or moved without editing it.
+- `BOOTSTRAP.md` is the canonical bootstrap. The Atomic Chat skill settings hold only a **pointer** to it (raw URL + `get_file_contents` + a four-line safety net), so the settings text never needs editing again — new rules, new files and renames all happen here. It deliberately lists no files, only the read procedure, so brain files can be added, split or moved without editing it.
 - `learned/` is a real folder and the growth target: `learned/api-facts.md`, `learned/errors.md`, `learned/patterns.md`, `learned/corrections.md`, `learned/unverified.md`. New facts go here first.
 - The reference parts sit flat at the repo root under their bare names (`failure-protocols.md`, `hub-sync.md`, `api-memory.md`, ...). `SKILL.md` section 14 calls them `parts/api-*`; the actual path is the bare root name. Moving them into `parts/` must be done with GitHub's web rename (pencil -> change the name field -> commit) and `INDEX.md` updated in the same commit; re-uploading them risks silent corruption of reference text.
 - `_TEMPLATE.md` is the game-note template. Copy it to `games/<Game Name>.md` when a game gets worked on.
