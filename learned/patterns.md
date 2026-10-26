@@ -64,3 +64,11 @@ Confirmed (2026-10-26): user report "working fine for the first few notes after 
 Three separate detection schemes were written for one symptom (hold notes not registering). The actual fault was a single numeric constant outside the game's documented range. Before writing a fourth detection mechanism, re-read the constants involved and check them against the game's own data.
 
 Confirmed (2026-10-26): v2.10 (Y-gated), v2.11 (tile lifetime) and v2.12 (head+tail pair) all failed; v2.14 fixed it by changing one duration constant. Proof: version history plus user reports.
+
+## Reflection is not learning unless it is written down
+A session can correct itself many times in one conversation and still leave the brain unchanged, so the next session repeats the same mistake with better commentary. Every self-correction - "that was my bug", "the real cause was X", "the constant was outside the range" - has to land in a brain file in the same turn, or it is lost when the window closes.
+- Symptom: a long session full of admissions of error, but every entry in `learned/` predates it.
+- Test at the end of any turn that contained a correction: the read-back should show a new or edited entry. If it does not, the correction was narration, not learning.
+- Corollary: reading the brain and then improvising is the same failure with a better excuse. A dated brain stamp in the reply is the only cheap proof that the read happened.
+
+Confirmed (2026-10-26): the user's own diagnosis of a parallel Piano Tiles chat - it found real bugs (stale read-backs, a cursor pinned at 1919,1079, mouse input dead, an out-of-range hold duration) and wrote none of them down, so a later session had to rediscover every one. Proof: user observation plus the transcript.
