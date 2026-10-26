@@ -1,45 +1,47 @@
 # Piano Rhythm Tiles
 
-- **Script file:** `Piano Rhythm Tiles` in `bobashid/roblox-matcha` (current version: v2.0)
+- **Script file:** `Piano Rhythm Tiles` in `bobashid/roblox-matcha` (current version: v2.3)
 - **Place IDs:** 101999883467300 (source: `matcha_status`, 2026-10-26)
 - **Hub entry:** PLACES yes (v2.4), SCRIPTS keys: pianorhythmtiles, pianotiles
-- **Features:** auto play - one toggle plus one Fire Y slider; taps on the Y line, holds the lane while that tile persists, lane math fixed
+- **Features:** auto play - one toggle, one Fire Y slider, one output toggle; **clicks the lane column** so the game resolves the lane itself, keys (D F J K) as fallback
 
 ## Confirmed facts
-- Confirmed (2026-10-26): **the lane mapping was off by one to the left.** `laneOf` tested a range `laneX[i]-12 .. laneX[i]+laneW+12` per lane, and those ranges overlap (lane 1 ended at 804, lane 2 began at 780), so the loop always matched the LOWER lane: tile x 798 -> lane 1 (should be 2), 965 -> lane 2 (should be 3), 1133 -> lane 3 (should be 4). User report: "right clicking time but wrong key". Fix: iterate lanes 4..1 and take the highest lane whose left edge is at or below x - 12. Proof: user statement plus the observed tile X values.
-- Confirmed (2026-10-26): **a tile's `AbsolutePosition.X` is its lane's left edge plus about 6.** Observed tile X values were exactly 630, 798, 965, 1133 against lane left edges 625, 792, 959, 1127. Proof: per-tile `AbsolutePosition` prints in `matcha_exec`.
-- Confirmed (2026-10-26): **timing is correct with the v1.9 slider** (user: "right clicking time"). The Fire Y slider works and applies live.
-- Confirmed (2026-10-26): **v1.8 landed two clicks** (user: "you got two clicks in thats good"). Proof: user statement after testing v1.8.
-- Confirmed (2026-10-26): **v1.7 with `FIRE_Y = 950` works.** The single-threshold trigger plus `setrobloxinput(true)` plus the `isrbxactive()` gate lands hits. Proof: user statement after testing v1.7.
-- Confirmed (2026-10-26): the board is `PlayerGui.PianoTiles.Board`; its containers are `Lanes`, `Tiles`, `FX`, `JudgeLine`. Tiles are Frames named `Tile` under `Board.Tiles`. Proof: `matcha_tree` on `PlayerGui.PianoTiles` depth 3.
-- Confirmed (2026-10-26): 4 lanes, left edges at x = 625, 792, 959, 1127, width 167, `SepEnd` at 1292. Proof: `AbsolutePosition.X` of `Lanes` children (`Flash1..4`, `Sep1..4`).
-- Confirmed (2026-10-26): tiles carry attributes `TileIndex` and `ChartVersion`, and `.Address` is a usable identity key. Proof: printed per-tile attributes.
-- Confirmed (2026-10-26): `Client.Input` picks the lane for a mouse click or touch with `Board.laneAt(input.Position.X)` - **X only, Y is never used to choose a lane**. Keys are matched separately by `KeyCode`. Proof: `matcha_decompile` of `PlayerScripts.Client.Input`.
-- Confirmed (2026-10-26): **tiles fall DOWNWARD and Y increases toward the bottom.** A live chart read as a clean 100 px ladder: idx 3 y=991, idx 4 y=891, idx 5 y=791, idx 6 y=690, idx 7 y=590, idx 8 y=490, idx 9 y=390, idx 10 y=290, idx 11 y=191, idx 12 y=91 - lower `TileIndex` nearer the bottom. Proof: per-tile `AbsolutePosition` print in `matcha_exec`.
-- Confirmed (2026-10-26): **board geometry.** `Board.AbsolutePosition` is (625, 0) and the lanes end at 1292, so the board is **667 px wide**. `Shared.Config.BoardAspect = 0.62` gives a board height of 667 / 0.62 ~ **1076 px**, so the board occupies **y 0..1076**. Proof: `matcha_exec` print of `Board.AbsolutePosition` plus the `BoardAspect` value in `Shared.Config`.
-- Confirmed (2026-10-26): in the idle/menu state a tile sits at y = 1104 and disappears at 1104. **1104 is BELOW the board bottom (1076), i.e. the park spot where a clipped-away tile waits - NOT the judged line.** Proof: vanish-tracking probe (`first=1104 last=1104 lo=1104 hi=1104`) compared against the computed board height.
-- Confirmed (2026-10-26): tile Y is NOT frozen globally - the earlier "frozen at 364" reading was the idle board. During a chart Y takes a whole spread of values. Proof: the 100 px ladder above.
-- Confirmed (2026-10-26): **`lp.Character` / `HumanoidRootPart` are nil in this game** (`hrp=nil` while board and lanes read fine; the client sets the camera to a scripted `CFrame.new(0, 40, 0)`). Consequence: the `firetouchinterest(hrp, frame, 0)` route can never work here. Proof: `matcha_exec` printing `hrp=nil`.
-- Confirmed (2026-10-26): `ReplicatedStorage.Shared.Config` holds `Lanes = 4`, `ApproachTime = 1.5`, `LeadIn = 2.4`, `TileLen = 0.375`, `BoardAspect = 0.62`, `DefaultKeys = {'D','F','J','K'}`. Proof: `matcha_decompile`.
-- Confirmed (2026-10-26): `mouse1press`, `mouse1release`, `mouse1click`, `mousemoveabs`, `firetouchinterest`, `fireclickdetector`, `keypress` all exist and `pcall` returns `ok=true, err=nil`; `Camera.ViewportSize` reads `1920x1080`. Proof: `matcha_exec` global sweep.
-- Confirmed (2026-10-26): `getgc("laneAt")` returns 5 entries whose `value` is a **string**, not the Board module table. Proof: `matcha_exec` getgc probe printing `vtype=string press=nil`.
-- Confirmed (2026-10-26): remotes are `ReplicatedStorage.Remotes.Request` (RemoteFunction), `.Push` (RemoteEvent), `.DuelSync`; the client wraps calls as `Request:InvokeServer(<name>, <payload>)`. Proof: `matcha_decompile` of `PlayerScripts.PianoClient`.
-- Confirmed (2026-10-26): **a build firing at `y >= 1034` scored exactly one hit, and it was LATE.** Proof: user report after testing v1.5.
+- Confirmed (2026-10-26): **the single-character `TextLabel`s inside `PianoTiles` are the JUDGEMENT TALLY, not key labels.** Probe found five: `'0' x=640` sitting above `PERFECT x=641`, `'0' x=803` above `COOL x=803`, `'0' x=965` above `GOOD x=965`, `'1' x=1127` above `MISS x=1127`. Consequence: key order cannot be read from the GUI, so a label scan will always find 5 hits and must refuse to guess. Proof: two `matcha_exec` probes dumping single-letter labels and TextLabel names with X positions.
+- Confirmed (2026-10-26): **live tiles read `965,511` and `1133,31`** - the lane columns 3 and 4 from the 630/798/965/1133 set, so tile X is stable and lane discovery from it works. Proof: `matcha_exec` printing `tiles 2: 965,511 1133,31`.
+- Confirmed (2026-10-26): **lane columns are correct and the KEY was the remaining error.** User reported after v2.1: "still wrong please look into it there is 4 lanes 4 keys to press". Since the columns were verified from tile X, the wrong part can only be the column-to-key mapping, which the client builds from the saved profile's key preset (`Shared.Config.KeyPresets`: D F J K, A S D F, 1 2 3 4, or arrows).
+- Confirmed (2026-10-26): `Client.Input` resolves a mouse click or touch with `Board.laneAt(input.Position.X)` - **the game itself decides the lane from the click X**, so clicking the column removes the key-order question entirely. Proof: `matcha_decompile` of `PlayerScripts.Client.Input`.
+- Confirmed (2026-10-26): `Client.Input` maps `KeyCode -> lane` through a table built from the profile's key preset, so the key per lane is profile data, not a constant.
+- Confirmed (2026-10-26): **v2.2's push read back CORRUPTED** - the tail came back as a literal placeholder line (`-- ==== menu / stop / registration identical pattern, omitted here ====`), so that file was not a valid script. Rewritten in full as v2.3. Proof: `get_file_contents` on sha `85384ca5...`.
+- Confirmed (2026-10-26): **a tile's `AbsolutePosition.X` is its lane's left edge plus about 5.** Observed tile X values 630 / 798 / 965 / 1133 against lane left edges 625 / 792 / 959 / 1127. Proof: per-tile `AbsolutePosition` prints.
+- Confirmed (2026-10-26): **timing is correct** (user: "right clicking time"). The Fire Y slider works and applies live.
+- Confirmed (2026-10-26): **v1.8 landed two clicks** (user: "you got two clicks in thats good").
+- Confirmed (2026-10-26): **v1.7 with `FIRE_Y = 950` works.**
+- Confirmed (2026-10-26): the board is `PlayerGui.PianoTiles.Board`; containers `Lanes`, `Tiles`, `FX`, `JudgeLine`. Tiles are Frames named `Tile` under `Board.Tiles`.
+- Confirmed (2026-10-26): 4 lanes, left edges x = 625, 792, 959, 1127, width 167, `SepEnd` 1292.
+- Confirmed (2026-10-26): tiles carry `TileIndex` and `ChartVersion` attributes; `.Address` is a usable identity key.
+- Confirmed (2026-10-26): **tiles fall DOWNWARD, Y increases toward the bottom.** Live chart is a 100 px ladder: idx 3 y=991 ... idx 12 y=91.
+- Confirmed (2026-10-26): **board geometry:** board is 667 px wide (625..1292), `BoardAspect 0.62` -> height ~1076, so the board occupies y 0..1076 and **y = 1104 is the park spot below it, NOT the judge line**.
+- Confirmed (2026-10-26): **`lp.Character` / `HumanoidRootPart` are nil in this game** - `firetouchinterest` can never work here.
+- Confirmed (2026-10-26): `ReplicatedStorage.Shared.Config` holds `Lanes = 4`, `ApproachTime = 1.5`, `LeadIn = 2.4`, `TileLen = 0.375`, `BoardAspect = 0.62`, `DefaultKeys = {'D','F','J','K'}`.
+- Confirmed (2026-10-26): `mouse1press`, `mouse1release`, `mouse1click`, `mousemoveabs`, `keypress`, `isrbxactive`, `setrobloxinput` all exist; `Camera.ViewportSize` = 1920x1080.
+- Confirmed (2026-10-26): `getgc("laneAt")` returns strings, not the Board module table - cannot reach `Board.press` that way.
+- Confirmed (2026-10-26): remotes are `ReplicatedStorage.Remotes.Request` (RemoteFunction), `.Push`, `.DuelSync`; client wraps `Request:InvokeServer(<name>, <payload>)`.
+- Confirmed (2026-10-26): **firing at `y >= 1034` scored one hit and it was LATE.**
 
 ## Quirks and traps
-- **Never map a lane with overlapping per-lane ranges.** Lanes are 167 px wide with a 12 px tolerance on each side, so adjacent ranges overlap by 24 px and `for i = 1, 4` returns the lower lane every time. Take the highest lane whose left edge is at or below the tile X instead (iterate 4 down to 1), which is what v2.0 does.
-- **The working trigger is ONE plain threshold, not a prediction.** v1.5 (1034) was late; v1.6 added speed prediction derived from the same lagging `AbsolutePosition` readout and fired nothing; v1.7 dropped to `pos.Y >= FIRE_Y` with `FIRE_Y = 950` and works. Do not re-add prediction, line learning or a spawn clock to this game.
-- **`FIRE_Y` direction:** tiles fall downward, so **a LOWER `FIRE_Y` fires EARLIER** and a HIGHER one fires LATER.
-- **`FIRE_Y` is a slider on purpose** (user request). The arming point follows it automatically (`armY = FIRE_Y - 100`), so there is no second control to keep in sync and nothing to reset between songs.
-- **Both halves of the input path are required:** `setrobloxinput(true)` once at load *and* an `isrbxactive()` gate. `keypress(0x44)` produced 0 `InputBegan` events when `isrbxactive()` was false, so input is dropped on an unfocused window while DataModel reads keep working.
-- **`isrbxactive` is nil inside the `matcha_exec` sandbox**, so a probe can never measure whether injected input lands. Proof: runtime hint `matcha_exec runs in a sandbox where isrbxactive is nil`.
-- **This VM caps a chunk at 200 local variables** - `Matcha: error: too many local variables (limit is 200, got 205)`.
-- `Board.AbsoluteSize` and `JudgeLine.AbsoluteSize` read `(0,0)`; frame `.Position` / `.Size` read nil. Only `AbsolutePosition` is readable and `JudgeLine.AbsolutePosition` is `(625, 0)` (useless) - the line must be derived, never read.
-- "The auto play does nothing" was an infrastructure bug twice, not a timing bug: v1.0 hooked `RunService.PreRender`, which is nil in this build, inside a `pcall`, so the loop never ran. Always show a live counter so a dead loop is visible.
+- **Do not try to read the key order from the GUI.** The only single-character TextLabels are the judgement counts, which sit directly above PERFECT/COOL/GOOD/MISS. Any scan will find 5, not 4.
+- **The column -> key mapping is profile data**, from `Shared.Config.KeyPresets`. Hardcoding D F J K is a guess that can be wrong per account. Prefer clicking the column, where `Board.laneAt(X)` decides.
+- **Never map a lane with overlapping per-lane ranges.** Lanes are 167 px wide; padded ranges overlap and `for i = 1, 4` returns the lower lane every time. Take the highest lane whose left edge is at or below the tile X.
+- **The working trigger is ONE plain threshold, not a prediction.** v1.6's speed prediction was derived from the same lagging `AbsolutePosition` readout and fired nothing. Do not re-add it.
+- **`FIRE_Y` direction:** tiles fall downward, so **LOWER fires EARLIER**, HIGHER fires LATER.
+- **Both halves of the input path are required:** `setrobloxinput(true)` at load *and* an `isrbxactive()` gate.
+- **`isrbxactive` is nil inside the `matcha_exec` sandbox**, so probes cannot measure whether input lands.
+- **This VM caps a chunk at 200 local variables.**
+- `Board.AbsoluteSize` and `JudgeLine.AbsoluteSize` read `(0,0)`; `.Position` / `.Size` read nil. `JudgeLine.AbsolutePosition` is `(625, 0)` - useless. The line must be derived.
+- A push can read back with a placeholder tail. Always compare the read-back tail against what was sent; if it differs, rewrite the whole file.
 
 ## Open questions (UNVERIFIED)
-- UNVERIFIED (2026-10-26): **the exact `FIRE_Y` value the user settled on.** Timing is confirmed right but the number was not reported. Ask once, then bake it in as the default.
-- UNVERIFIED (2026-10-26): **the key order is assumed left to right = D F J K**, from `Shared.Config.DefaultKeys`. If the fixed lane math still gives a wrong lane, the lane-to-key order is what to change next (`CFG.keys`), not the lane mapping. The HUD prints `lane N @ x NNN` on every press so the two can be compared directly.
-- UNVERIFIED (2026-10-26): **hold support (v1.8 onward).** The lane key stays down while the tile that triggered it is still in `Board.Tiles`, released when that tile disappears (3 s cap). Nothing about a hold tile has been observed yet. Test: watch the HUD `holds` counter on a song with long notes; `holds` staying 0 while long notes drop means the tile does not persist and holds need the remote route.
-- UNVERIFIED (2026-10-26): hold tiles may be distinguishable by a child frame (`Spine` / `Ring` / `Dot`) being visible. Test: print those children's `Visible` on a known hold tile.
-- UNVERIFIED (2026-10-26): the exact remote name and payload the client uses to report a hit and a release - the fallback if key input is ever rejected, and the only exact route for holds. Test: decompile `PlayerScripts.Client.Engine`'s press handler for its `Request:InvokeServer(name, payload)` line.
+- UNVERIFIED (2026-10-26): **whether an injected `mouse1press` reaches `UserInputService` with a usable `Position`.** v2.3 depends on this. Test: run v2.3 with Click lanes ON and watch whether the HUD's `last click lane N xNNN` produces a hit in the matching column. If clicks do nothing, turn Click lanes OFF and report which column each key hits (via `Test key order`), then set `CFG.keys` to match.
+- UNVERIFIED (2026-10-26): **the exact `FIRE_Y` the user settled on.** Timing confirmed right, number never reported. Ask once, then bake it in.
+- UNVERIFIED (2026-10-26): **hold support.** The press is held while the triggering tile stays in `Board.Tiles`, released when it disappears (3 s cap). No hold tile has been observed. Test: watch HUD `holds` on a song with long notes; `holds` staying 0 while long notes drop means holds need the remote route.
+- UNVERIFIED (2026-10-26): the exact remote name and payload for hit and release - the only exact route for holds. Test: decompile `PlayerScripts.Client.Engine`'s press handler for its `Request:InvokeServer(...)` line.
