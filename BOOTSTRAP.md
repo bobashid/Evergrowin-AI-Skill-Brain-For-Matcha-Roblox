@@ -1,14 +1,44 @@
 # BOOTSTRAP: the note loaded at the start of every Matcha chat
 
-This file is the **canonical** text of the bootstrap note. The copy in the user's skill
-settings is a paste of this file. If they differ, edit this one; the settings copy is
-downstream. That is deliberate: it means a chat can fix the bootstrap without the user
-touching their skill settings by hand.
+## Loader for a loader
 
-Design rule: **this note lists no files.** It says "read the whole repo". Adding,
-splitting, renaming or moving a brain file therefore never requires editing this note.
-Only a repo rename, a branch change, or the repo growing past the point where a full
-read is practical would force an edit.
+Atomic Chat's skill settings hold a **pointer**, not the note. The note lives here and is
+edited here. That is the whole design: everything that changes lives in this file, so the
+settings text never needs to be touched again — not for a new rule, not for a new file, not
+for a rename inside the brain.
+
+**Recommended settings paste** (pointer plus a four-line safety net, so a GitHub outage
+does not leave the chat with no rules at all):
+
+```
+The Matcha bootstrap is at
+https://raw.githubusercontent.com/bobashid/Evergrowin-AI-Skill-Brain-For-Matcha-Roblox/refs/heads/main/BOOTSTRAP.md
+Read it with get_file_contents (owner bobashid, repo Evergrowin-AI-Skill-Brain-For-Matcha-Roblox,
+path BOOTSTRAP.md, ref main) and follow it exactly. If the raw URL is the only route, append a
+cache-buster: ?v=<any unique value>.
+
+If it cannot be read: say so in one sentence, and until it can be read follow only these —
+scripts go to bobashid/roblox-matcha and never into the chat; over 40 lines is pushed and the
+reply is the status block with the loader line; a tool result you did not see is a failure, so
+never claim a push, sha, size, version or "verified" without it this turn; ask before guessing.
+```
+
+**Pure one-liner** (smallest possible, but a GitHub outage leaves the chat with no rules):
+
+```
+Read https://raw.githubusercontent.com/bobashid/Evergrowin-AI-Skill-Brain-For-Matcha-Roblox/refs/heads/main/BOOTSTRAP.md
+and follow it exactly as the Matcha bootstrap for this chat.
+```
+
+**Why `get_file_contents` is preferred over the raw URL.** raw.githubusercontent.com sits
+behind a CDN that can serve a copy for a few minutes after a commit, so a note edited this
+session may read back stale. The GitHub tool reads the commit directly. A `?v=` query string
+on the raw URL is the fallback cache-buster, same idea as the script loaders.
+
+**Design rule: this note lists no files.** It says "read the whole repo", so adding,
+splitting, renaming or moving a brain file never requires editing it. Only three things
+force an edit — a repo rename, a branch change, or the repo outgrowing a full read — and even
+then the edit happens here, not in the Atomic Chat settings.
 
 ---
 
