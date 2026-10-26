@@ -1,12 +1,13 @@
 # Piano Rhythm Tiles
 
-- **Script file:** `Piano Rhythm Tiles` in `bobashid/roblox-matcha` (current version: v1.8)
+- **Script file:** `Piano Rhythm Tiles` in `bobashid/roblox-matcha` (current version: v1.9)
 - **Place IDs:** 101999883467300 (source: `matcha_status`, 2026-10-26)
 - **Hub entry:** PLACES yes (v2.4), SCRIPTS keys: pianorhythmtiles, pianotiles
-- **Features:** auto play - ONE toggle; taps on a single Y line (proven at 950) and holds the lane while that tile persists
+- **Features:** auto play - one toggle plus one **Fire Y slider**; taps on the Y line and holds the lane while that tile persists
 
 ## Confirmed facts
 - Confirmed (2026-10-26): **v1.7 with `FIRE_Y = 950` works.** User report: "its now working". The single-threshold trigger plus `setrobloxinput(true)` plus the `isrbxactive()` gate lands hits. Proof: user statement after testing v1.7.
+- Confirmed (2026-10-26): **v1.8 landed two clicks** (user: "you got two clicks in thats good"). Proof: user statement after testing v1.8.
 - Confirmed (2026-10-26): the board is `PlayerGui.PianoTiles.Board`; its containers are `Lanes`, `Tiles`, `FX`, `JudgeLine`. Tiles are Frames named `Tile` under `Board.Tiles`. Proof: `matcha_tree` on `PlayerGui.PianoTiles` depth 3.
 - Confirmed (2026-10-26): 4 lanes, left edges at x = 625, 792, 959, 1126, width 167, `SepEnd` at 1292. Proof: `AbsolutePosition.X` of `Lanes` children (`Flash1..4`, `Sep1..4`).
 - Confirmed (2026-10-26): tiles carry attributes `TileIndex` and `ChartVersion`, and `.Address` is a usable identity key. Proof: printed per-tile attributes.
@@ -24,7 +25,8 @@
 
 ## Quirks and traps
 - **The working trigger is ONE plain threshold, not a prediction.** v1.5 (1034) was late; v1.6 added speed prediction derived from the same lagging `AbsolutePosition` readout and fired nothing; v1.7 dropped to `pos.Y >= FIRE_Y` with `FIRE_Y = 950` and works. Do not re-add prediction, line learning or a spawn clock to this game.
-- **`FIRE_Y` direction, get this right:** tiles fall downward, so **a LOWER `FIRE_Y` fires EARLIER** and a HIGHER one fires LATER. A draft of v1.7 had this backwards in a comment.
+- **`FIRE_Y` direction, get this right:** tiles fall downward, so **a LOWER `FIRE_Y` fires EARLIER** and a HIGHER one fires LATER.
+- **v1.9 exposes `FIRE_Y` as a slider on purpose.** The user asked for it so they can trim the line themselves and report the value; the arming point follows the slider automatically (`armY = FIRE_Y - 100`), so no second control is needed and the slider never has to be reset between songs.
 - **Both halves of the input path are required:** `setrobloxinput(true)` once at load *and* an `isrbxactive()` gate. `keypress(0x44)` produced 0 `InputBegan` events when `isrbxactive()` was false, so input is dropped entirely on an unfocused window while DataModel reads keep working.
 - **`isrbxactive` is nil inside the `matcha_exec` sandbox**, so a probe can never measure whether injected input lands. Only a script pushed through the loader can check focus. Proof: runtime hint `matcha_exec runs in a sandbox where isrbxactive is nil`.
 - **This VM caps a chunk at 200 local variables** - `Matcha: error: too many local variables (limit is 200, got 205)`. Keep probe and script bodies lean.
@@ -32,7 +34,7 @@
 - "The auto play does nothing" was an infrastructure bug twice, not a timing bug: v1.0 hooked `RunService.PreRender`, which is nil in this build, inside a `pcall`, so the loop never ran. Always show a live counter so a dead loop is visible.
 
 ## Open questions (UNVERIFIED)
-- UNVERIFIED (2026-10-26): **v1.8 hold support.** It keeps the lane key down while the tile that triggered it is still in `Board.Tiles` and releases when that tile disappears (3 s cap). Nothing about a hold tile has been observed yet - this may tap-only-again, or hold too long. Test: watch the HUD `holds` counter on a song with long notes; `holds` staying 0 while long notes drop means the tile does not persist, and holds then need the remote route.
-- UNVERIFIED (2026-10-26): the exact judged Y is bracketed by **950 (works)** and **1034 (late)**, so it sits between them. Nudging up to ~980 may score tighter (PERFECT instead of GREAT/GOOD) and past ~1000 is expected to go late again. Test: raise `FIRE_Y` to 980, play a song, read the judgement text; revert to 950 if LATE returns.
-- UNVERIFIED (2026-10-26): hold tiles can be told apart from taps by a child frame (`Spine` / `Ring` / `Dot`) being visible. Test: print those children's `Visible` on a known hold tile.
+- UNVERIFIED (2026-10-26): **the best `FIRE_Y` value.** 950 lands hits and 1034 was late, so the answer is between them; the user is trimming it with the v1.9 slider and will report the winning number. Record it here the moment they do, and drop the slider back to a constant if they ask.
+- UNVERIFIED (2026-10-26): **hold support (v1.8/v1.9).** The lane key stays down while the tile that triggered it is still in `Board.Tiles`, released when that tile disappears (3 s cap). Nothing about a hold tile has been observed yet. Test: watch the HUD `holds` counter on a song with long notes; `holds` staying 0 while long notes drop means the tile does not persist and holds need the remote route.
+- UNVERIFIED (2026-10-26): hold tiles may be distinguishable by a child frame (`Spine` / `Ring` / `Dot`) being visible. Test: print those children's `Visible` on a known hold tile.
 - UNVERIFIED (2026-10-26): the exact remote name and payload the client uses to report a hit and a release - the fallback if key input is ever rejected, and the only exact route for holds. Test: decompile `PlayerScripts.Client.Engine`'s press handler for its `Request:InvokeServer(name, payload)` line.
