@@ -1,9 +1,9 @@
 # Piano Rhythm Tiles
 
-- **Script file:** `Piano Rhythm Tiles` in `bobashid/roblox-matcha` (current version: v1.7)
+- **Script file:** `Piano Rhythm Tiles` in `bobashid/roblox-matcha` (current version: v1.8)
 - **Place IDs:** 101999883467300 (source: `matcha_status`, 2026-10-26)
 - **Hub entry:** PLACES yes (v2.4), SCRIPTS keys: pianorhythmtiles, pianotiles
-- **Features:** auto play - ONE toggle; taps the lane when a tile crosses a single Y line. **WORKING as of v1.7 with FIRE_Y = 950.**
+- **Features:** auto play - ONE toggle; taps on a single Y line (proven at 950) and holds the lane while that tile persists
 
 ## Confirmed facts
 - Confirmed (2026-10-26): **v1.7 with `FIRE_Y = 950` works.** User report: "its now working". The single-threshold trigger plus `setrobloxinput(true)` plus the `isrbxactive()` gate lands hits. Proof: user statement after testing v1.7.
@@ -32,6 +32,7 @@
 - "The auto play does nothing" was an infrastructure bug twice, not a timing bug: v1.0 hooked `RunService.PreRender`, which is nil in this build, inside a `pcall`, so the loop never ran. Always show a live counter so a dead loop is visible.
 
 ## Open questions (UNVERIFIED)
-- UNVERIFIED (2026-10-26): the exact judged Y is bracketed by **950 (works)** and **1034 (late)**, so it sits between them. Firing at 950 lands hits; nudging up to ~980 may score tighter (PERFECT instead of GREAT/GOOD) and nudging past ~1000 is expected to go late again. Test: raise `FIRE_Y` to 980, play a song, and read the judgement text; revert to 950 if LATE returns.
-- UNVERIFIED (2026-10-26): hold tiles can be told apart from taps by a child frame (`Spine` / `Ring` / `Dot`) being visible. The current script taps once per tile and holds nothing, so long notes may still break. Test: print those children's `Visible` on a known hold tile.
-- UNVERIFIED (2026-10-26): the exact remote name and payload the client uses to report a hit - the fallback if key input is ever rejected. Test: decompile `PlayerScripts.Client.Engine`'s press handler for its `Request:InvokeServer(name, payload)` line.
+- UNVERIFIED (2026-10-26): **v1.8 hold support.** It keeps the lane key down while the tile that triggered it is still in `Board.Tiles` and releases when that tile disappears (3 s cap). Nothing about a hold tile has been observed yet - this may tap-only-again, or hold too long. Test: watch the HUD `holds` counter on a song with long notes; `holds` staying 0 while long notes drop means the tile does not persist, and holds then need the remote route.
+- UNVERIFIED (2026-10-26): the exact judged Y is bracketed by **950 (works)** and **1034 (late)**, so it sits between them. Nudging up to ~980 may score tighter (PERFECT instead of GREAT/GOOD) and past ~1000 is expected to go late again. Test: raise `FIRE_Y` to 980, play a song, read the judgement text; revert to 950 if LATE returns.
+- UNVERIFIED (2026-10-26): hold tiles can be told apart from taps by a child frame (`Spine` / `Ring` / `Dot`) being visible. Test: print those children's `Visible` on a known hold tile.
+- UNVERIFIED (2026-10-26): the exact remote name and payload the client uses to report a hit and a release - the fallback if key input is ever rejected, and the only exact route for holds. Test: decompile `PlayerScripts.Client.Engine`'s press handler for its `Request:InvokeServer(name, payload)` line.
