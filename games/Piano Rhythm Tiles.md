@@ -1,13 +1,14 @@
 # Piano Rhythm Tiles
 
-- **Script file:** `Piano Rhythm Tiles` in `bobashid/roblox-matcha` (current version: v2.9)
+- **Script file:** `Piano Rhythm Tiles` in `bobashid/roblox-matcha` (current version: v2.10)
 - **Place IDs:** 101999883467300 (source: `matcha_status`, 2026-10-26)
 - **Hub entry:** PLACES yes (v2.4), SCRIPTS keys: pianorhythmtiles, pianotiles
 - **Features:** auto play - ONE toggle + ONE Fire Y slider. Keys only. Hold notes sustained by keeping the lane key down while the tile persists. Fire line, board-bottom line, per-note dots.
 
 ## Confirmed facts
+- Confirmed (2026-10-26): **v2.9 never compiled** - `Matcha:129: Expected identifier when parsing expression, got 'until'`. `until` is a Lua reserved keyword and cannot be a bare table key. Fixed in v2.10 by renaming the field to `due`. Proof: user-pasted console error, then a clean v2.10 read-back.
 - User-stated (2026-10-26): **the game has hold notes** ("just know there are hold ones too"). Any autoplay that only taps will drop them. Proof: user statement.
-- Confirmed (2026-10-26): **the script worked for the first few notes and then degraded** (user: "it was working fine for the first few notes after that it diddnt work well anymore"). The failure is mid-song, not at load, which points at state that accumulates or at a window only sparse opening bars satisfy. v2.9 addresses both candidates. Proof: user statement.
+- Confirmed (2026-10-26): **the script worked for the first few notes and then degraded** (user: "it was working fine for the first few notes after that it diddnt work well anymore"). The failure is mid-song, not at load, which points at state that accumulates or at a window only sparse opening bars satisfy. v2.10 addresses both candidates. Proof: user statement.
 - Confirmed (2026-10-26): **mouse movement does not work in this game.** A user HUD read `cur 1919,1079` - the bottom-right corner of a 1920x1080 screen - and the cursor never moved, so every click fired outside the board. `mousemoveabs` and `mousemoverel` both return ok and change nothing. Mouse output removed from v2.7 onward. Proof: HUD screenshot (`v2.6 | KEYS | focus true | taps 2 | fireY 772 | off +0 | lanes 0/630/798/965 | tile x798 => click x958 | cur 1919,1079 | chart 44`).
 - Confirmed (2026-10-26): **a tile can report `AbsolutePosition.X = 0`**, which polluted the learned lane ladder: HUD showed `lanes 0/630/798/965`, so lane width computed as (965-0)/3 = 321 instead of 167 and every target was wrong. Tile X is now only accepted inside 560..1400. Proof: same HUD screenshot.
 - Confirmed (2026-10-26): **there is NO hit/press/release remote.** The only remote traffic is telemetry: `Request:InvokeServer("telemetry", {event="play_requested", mode="classic", input="keyboard"})`, `{event="offer", key="practiceMode", outcome="shown"}`, `{event="frames", taps=0, long=0, seconds=8.73, orient="landscape"}` - plus `clientErrors` and `songVote` from `PianoClient`. **Hits are scored locally in `Client.Engine`**, so the remote route is closed permanently. Proof: user-pasted remote calls plus `matcha_decompile` of `PlayerScripts.PianoClient`.
@@ -24,9 +25,11 @@
 - Confirmed (2026-10-26): `Drawing` Line / Circle / Text all construct and render; a pooled overlay works in this game.
 
 ## Quirks and traps
-- **A narrow arming window silently drops notes in dense sections.** v2.7 armed a tile only if seen at `Y < FIRE_Y - 120`; one dropped frame in a fast passage can carry a tile past that window, so it never armed and was discarded with no error. v2.9 arms any tile first seen above `FIRE_Y`.
+- **Never name a table key after a Lua reserved word.** `until` broke the whole chunk at compile time, so nothing ran - not even the version print. Use `due`, or bracket syntax `["until"]`.
+- **A narrow arming window silently drops notes in dense sections.** v2.7 armed a tile only if seen at `Y < FIRE_Y - 120`; one dropped frame in a fast passage can carry a tile past that window, so it never armed and was discarded with no error. v2.10 arms any tile first seen above `FIRE_Y`.
 - **Never schedule a key release with `task.delay`.** A missed delayed release leaves the key down; Windows then delivers no new keydown for a held key, so Roblox raises no `InputBegan` and that lane is dead for the rest of the song. Release on a per-frame deadline and force a release immediately before each press.
-- **A write can report a new sha while a later read returns the previous content.** Observed this session: a push reported a v2.8 sha and size, but two subsequent reads returned the v2.7 body and sha. Treat the read-back's version stamp as authoritative and re-push against the sha the file actually has, before telling the user a version is live.
+- **A write can report a new sha while a later read returns the previous content.** Observed this session twice (v2.8 and v2.10 game-note attempts). Treat the read-back's version stamp as authoritative and re-push against the sha the file actually has, before telling the user a version is live.
+- **A read-back can carry stray markup or duplicated lines.** Observed on this very file. Always read the tail, not just the head.
 - **Mouse input is dead here - do not rebuild it.** Both `mousemoveabs` and `mousemoverel` report success and leave the cursor pinned at the screen corner (1919,1079). Keys only.
 - **Reject impossible tile X values.** A parked or hidden tile can report `X = 0`, which poisons the learned ladder and skews lane width. Accept only 560..1400, and fall back to the known 630/798/965/1133 ladder.
 - **Do not ask for the press remote - it does not exist.** Remotes are telemetry/errors/votes only; scoring is local.
@@ -38,8 +41,8 @@
 - **This VM caps a chunk at 200 local variables.**
 - `Board.AbsoluteSize` / `JudgeLine.AbsoluteSize` read `(0,0)`; `.Position` / `.Size` read nil. The line must be derived, never read.
 
-## Hold notes (v2.9)
-- A hold is sustained by keeping that lane's key down while its tile is still live **and** has travelled past the line (`Y > FIRE_Y + 20`, up to `FIRE_Y + HOLD_TAIL` = 700). The release deadline is pushed forward every frame it qualifies, and the lane is released `TAP_MS` (45 ms) after the tile disappears, with `MAX_HOLD = 4 s` as a safety cap.
+## Hold notes (v2.10)
+- A hold is sustained by keeping that lane's key down while its tile is still live **and** has travelled past the line (`Y > FIRE_Y + 20`, up to `FIRE_Y + HOLD_TAIL` = 700). The release deadline (`held[lane].due`) is pushed forward every frame it qualifies, and the lane is released `TAP_MS` (45 ms) after the tile disappears, with `MAX_HOLD = 4 s` as a safety cap.
 - A tap tile does not persist past the line, so it still gets a plain tap.
 - Four independent keys can hold several lanes at once - the reason holds are keys-only and cannot be done with a mouse.
 
@@ -50,6 +53,6 @@
 
 ## Open questions (UNVERIFIED)
 - UNVERIFIED (2026-10-26): **does a hold tile actually persist past the line?** The whole hold mechanism depends on it. Test: play a song with long notes and read the HUD - `holds` climbing means tiles do persist and the sustain is firing; `holds` stuck at 0 while long notes still drop means the tile is destroyed at the line and holds need a different signal (a child frame such as `Spine`/`Ring`/`Dot`, or the chart clock).
-- UNVERIFIED (2026-10-26): **does v2.9 hold up past the opening bars?** Test: play a full song with a dense section. `skipped` near 0 with `taps` climbing throughout means the arming fix is right; `skipped` climbing mid-song means reads are too slow and the trigger needs to move off a Y threshold.
+- UNVERIFIED (2026-10-26): **does v2.10 hold up past the opening bars?** Test: play a full song with a dense section. `skipped` near 0 with `taps` climbing throughout means the arming fix is right; `skipped` climbing mid-song means reads are too slow and the trigger needs to move off a Y threshold.
 - UNVERIFIED (2026-10-26): **is the key order left-to-right D F J K on this account?** Assumed from `Shared.Config.DefaultKeys`, but the client builds the map from the saved profile's preset. If presses land in the wrong column, the order - not the geometry - is what to change (`KEYS` in the script; `FALLBACK` order stays fixed).
 - UNVERIFIED (2026-10-26): the exact `FIRE_Y` the user settles on - timing confirmed right, number never reported. The slider exists so it can be reported.
