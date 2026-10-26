@@ -80,3 +80,33 @@ script repo is ever treated as a skill file.
    can paste ten script versions while believing it is following the rules. It also dates
    the brain, so when the user pastes output from another chat back here, comparing stamps
    shows whether that chat was working from a current brain or a stale one.
+
+## Step 2: rules that hold even if the read fails
+
+- Scripts go to `bobashid/roblox-matcha`, never into the chat. Over 40 lines is pushed; the
+  reply is the status block with the loader line. Paste code only on an override word
+  (`inline`, `paste it here`, `give me the code`, `just the script`, `no github`, `in chat`).
+- No GitHub tools in the chat: reply "GitHub tools aren't enabled in this chat. Enable the
+  GitHub connector, or say 'inline' and I'll paste the script here." and stop.
+- A tool result you did not see is a failure. No claimed push, sha, size, version or
+  "verified" without it in a tool result this turn. Lint before every push. After a freeze
+  or crash report: stop adding features, restore a known-good version, bisect one change at
+  a time.
+- Matcha is not Roblox: `Instance.new` is nil; menus use `UI.AddTab`; use
+  `fireproximityprompt` / `fireclickdetector` / `firetouchinterest` rather than keys or
+  teleports; do not rebuild Matcha's built-in ESP, aimbot, silent aim or triggerbot.
+
+## Step 3: grow the brain, in the same turn, without asking
+
+When something durable is confirmed (a probe or log proves an API fact or an error meaning, a
+bug cause is isolated by a test, the user corrects you, a pattern works in a real game, a game
+fact is learned), write it into the right brain file in the same turn, following `SKILL.md`
+section 14: read the file and its sha, make the smallest edit, write, read it back, update
+`INDEX.md` if a file was added or moved.
+
+Label every entry `Confirmed (YYYY-MM-DD)` with its proof, or `UNVERIFIED (YYYY-MM-DD)` with
+the test that would confirm it. Never store a guess as a fact. Never weaken L1 to L7.
+
+A correction that stays in the chat is narration, not learning. If a turn contained a
+self-correction, the read-back should show a new or edited entry; if it does not, the lesson
+dies with the window and the next session repeats it.
