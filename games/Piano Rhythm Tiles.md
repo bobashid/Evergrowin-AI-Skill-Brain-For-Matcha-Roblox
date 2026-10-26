@@ -3,9 +3,10 @@
 - **Script file:** `Piano Rhythm Tiles` in `bobashid/roblox-matcha` (current version: v1.7)
 - **Place IDs:** 101999883467300 (source: `matcha_status`, 2026-10-26)
 - **Hub entry:** PLACES yes (v2.4), SCRIPTS keys: pianorhythmtiles, pianotiles
-- **Features:** auto play - ONE toggle; taps the lane when a tile crosses a single Y line
+- **Features:** auto play - ONE toggle; taps the lane when a tile crosses a single Y line. **WORKING as of v1.7 with FIRE_Y = 950.**
 
 ## Confirmed facts
+- Confirmed (2026-10-26): **v1.7 with `FIRE_Y = 950` works.** User report: "its now working". The single-threshold trigger plus `setrobloxinput(true)` plus the `isrbxactive()` gate lands hits. Proof: user statement after testing v1.7.
 - Confirmed (2026-10-26): the board is `PlayerGui.PianoTiles.Board`; its containers are `Lanes`, `Tiles`, `FX`, `JudgeLine`. Tiles are Frames named `Tile` under `Board.Tiles`. Proof: `matcha_tree` on `PlayerGui.PianoTiles` depth 3.
 - Confirmed (2026-10-26): 4 lanes, left edges at x = 625, 792, 959, 1126, width 167, `SepEnd` at 1292. Proof: `AbsolutePosition.X` of `Lanes` children (`Flash1..4`, `Sep1..4`).
 - Confirmed (2026-10-26): tiles carry attributes `TileIndex` and `ChartVersion`, and `.Address` is a usable identity key. Proof: printed per-tile attributes.
@@ -22,15 +23,15 @@
 - Confirmed (2026-10-26): **a build firing at `y >= 1034` scored exactly one hit, and it was LATE.** So the tap must fire earlier in readout-space than 1034. Proof: user report after testing v1.5 ("i did get one but very late").
 
 ## Quirks and traps
+- **The working trigger is ONE plain threshold, not a prediction.** v1.5 (1034) was late; v1.6 added speed prediction derived from the same lagging `AbsolutePosition` readout and fired nothing; v1.7 dropped to `pos.Y >= FIRE_Y` with `FIRE_Y = 950` and works. Do not re-add prediction, line learning or a spawn clock to this game.
 - **`FIRE_Y` direction, get this right:** tiles fall downward, so **a LOWER `FIRE_Y` fires EARLIER** and a HIGHER one fires LATER. A draft of v1.7 had this backwards in a comment.
-- **`AbsolutePosition` lags the real animation for these tiles.** A build that fired "when the readout is near the line" was late by more than 40 px, so the tap point has to sit above the real line in readout-space. Do NOT try to correct this with a speed estimate derived from the same readout - it reproduces the lag (that was v1.6, and it fired nothing).
+- **Both halves of the input path are required:** `setrobloxinput(true)` once at load *and* an `isrbxactive()` gate. `keypress(0x44)` produced 0 `InputBegan` events when `isrbxactive()` was false, so input is dropped entirely on an unfocused window while DataModel reads keep working.
 - **`isrbxactive` is nil inside the `matcha_exec` sandbox**, so a probe can never measure whether injected input lands. Only a script pushed through the loader can check focus. Proof: runtime hint `matcha_exec runs in a sandbox where isrbxactive is nil`.
-- **Injected input is dead while the Roblox window is unfocused.** `keypress(0x44)` produced 0 `InputBegan` events when `isrbxactive()` was false. Always gate on `isrbxactive()` and call `setrobloxinput(true)` once at load - the working RoBeats showcaser does exactly this.
 - **This VM caps a chunk at 200 local variables** - `Matcha: error: too many local variables (limit is 200, got 205)`. Keep probe and script bodies lean.
 - `Board.AbsoluteSize` and `JudgeLine.AbsoluteSize` read `(0,0)`; frame `.Position` / `.Size` read nil. Only `AbsolutePosition` is readable and `JudgeLine.AbsolutePosition` is `(625, 0)` (useless) - the line must be derived from board geometry, never read.
 - "The auto play does nothing" was an infrastructure bug twice, not a timing bug: v1.0 hooked `RunService.PreRender`, which is nil in this build, inside a `pcall`, so the loop never ran. Always show a live counter so a dead loop is visible.
 
 ## Open questions (UNVERIFIED)
-- UNVERIFIED (2026-10-26): the exact judged Y. Board bottom is 1076 and a build firing at 1034 was late, so the tap point sits somewhere below 1034 in readout-space. v1.7 starts at `FIRE_Y = 950` (fires earlier). Test: play a song and trim `FIRE_Y` by ~40 per run toward PERFECT.
-- UNVERIFIED (2026-10-26): hold tiles can be told apart from taps by a child frame (`Spine` / `Ring` / `Dot`) being visible. Test: print those children's `Visible` on a known hold tile.
-- UNVERIFIED (2026-10-26): the exact remote name and payload the client uses to report a hit - the fallback if key input is rejected outright. Test: decompile `PlayerScripts.Client.Engine`'s press handler for its `Request:InvokeServer(name, payload)` line.
+- UNVERIFIED (2026-10-26): the exact judged Y is bracketed by **950 (works)** and **1034 (late)**, so it sits between them. Firing at 950 lands hits; nudging up to ~980 may score tighter (PERFECT instead of GREAT/GOOD) and nudging past ~1000 is expected to go late again. Test: raise `FIRE_Y` to 980, play a song, and read the judgement text; revert to 950 if LATE returns.
+- UNVERIFIED (2026-10-26): hold tiles can be told apart from taps by a child frame (`Spine` / `Ring` / `Dot`) being visible. The current script taps once per tile and holds nothing, so long notes may still break. Test: print those children's `Visible` on a known hold tile.
+- UNVERIFIED (2026-10-26): the exact remote name and payload the client uses to report a hit - the fallback if key input is ever rejected. Test: decompile `PlayerScripts.Client.Engine`'s press handler for its `Request:InvokeServer(name, payload)` line.
