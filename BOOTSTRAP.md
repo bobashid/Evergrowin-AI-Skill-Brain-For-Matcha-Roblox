@@ -70,16 +70,20 @@ script repo is ever treated as a skill file.
    sentence, follow Step 2, ask before guessing, and never claim you read it.
 7. **Print a dated brain stamp before your first sentence of substance.** One line:
 
-       brain: <YYYY-MM-DD HH:MM UTC> · SKILL <version> · learned <N> files · <sha8>
+       brain: <YYYY-MM-DD HH:MM UTC> · SKILL <version> · learned <N> files · <sha8> · grew <file|none>
 
-   Use the date and sha from the read you just did. If the repo could not be read, print
-   `brain: NOT READ` and follow Step 2 only.
+   Use the date and sha from the read you just did. The `grew` field is filled from the growth
+   write Step 3 requires — that write happens before the reply, so the stamp can carry it. If
+   nothing durable was confirmed, write `grew none (nothing durable)`.
+
+   If the repo could not be read, print `brain: NOT READ` and follow Step 2 only.
 
    Never omit this line. Without it, "read the brain and followed it" and "ignored the brain
-   and improvised from habit" look identical in the reply — which is exactly how a session
-   can paste ten script versions while believing it is following the rules. It also dates
-   the brain, so when the user pastes output from another chat back here, comparing stamps
-   shows whether that chat was working from a current brain or a stale one.
+   and improvised from habit" look identical in the reply — which is exactly how a session can
+   paste ten script versions while believing it is following the rules. It dates the brain, so
+   pasting output from another chat back here shows whether that chat was current or stale. And
+   `grew` makes a turn that learned nothing visible as exactly that, instead of
+   indistinguishable from a turn that learned a lot.
 
 ## Step 2: rules that hold even if the read fails
 
@@ -107,6 +111,16 @@ section 14: read the file and its sha, make the smallest edit, write, read it ba
 Label every entry `Confirmed (YYYY-MM-DD)` with its proof, or `UNVERIFIED (YYYY-MM-DD)` with
 the test that would confirm it. Never store a guess as a fact. Never weaken L1 to L7.
 
+**Account for growth every turn, not only when it happens.** Before replying, ask whether the
+turn produced anything durable. If yes, it is written and read back, and the stamp's `grew`
+field names the file. If no, the stamp says `grew none (nothing durable)`. A turn that silently
+skips the question is the failure this whole system exists to prevent: the brain stays the same
+size while feeling like it is growing.
+
 A correction that stays in the chat is narration, not learning. If a turn contained a
 self-correction, the read-back should show a new or edited entry; if it does not, the lesson
 dies with the window and the next session repeats it.
+
+When a `learned/` file approaches its rewrite ceiling, consolidate rather than append.
+`learned/working-style.md` holds the thresholds, the promotion rule, and the self-audit
+procedure.
