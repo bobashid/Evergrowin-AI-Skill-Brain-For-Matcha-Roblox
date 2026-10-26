@@ -41,3 +41,26 @@ User-stated (2026-10-26), Ride A Dino dump.
 Disconnect every connection, remove the tab, clear the global. No dismount, no teleport, no restore writes unless the user explicitly asked for them.
 
 User-stated (2026-10-26), Ride A Dino dump.
+
+## Read the game's own Config before choosing a duration or threshold
+Before picking any timing constant (hold length, cooldown, approach time), decompile the game's Config/Shared module and read its limits. A constant outside the game's own range cannot work no matter how correct the surrounding logic is.
+- Piano Rhythm Tiles: `Shared.Config` had `HoldMinLen = 0.6`, `HoldMaxLen = 2.4`, `HoldTickRate = 8`, `HoldKeepFrac = 0.82`, `SameLaneMinDt = 0.17`. A build holding every note for 0.50 s was below the 0.6 s minimum, so every hold was guaranteed to fail while taps looked fine.
+
+Confirmed (2026-10-26): three different hold-detection schemes failed before anyone checked the Config; the constant was the bug, not the detection. Proof: user reports plus a decompile of `Shared.Config`.
+
+## Force-release a key immediately before pressing it
+Windows delivers no new keydown for a key that is already held, so a key left down swallows every later press in that lane with no error anywhere. Call `keyrelease(vk)` (pcall'd) at the top of the press function, then `keypress(vk)`.
+- This is what makes an over-long hold safe: even if the previous hold has not expired, the next note in the same lane still registers.
+
+Confirmed (2026-10-26): reasoned from a HUD that showed keys being sent with no hits landing. Proof: Piano Rhythm Tiles v2.8 onward.
+
+## Arm on first sight anywhere past the threshold, not inside a narrow window
+A trigger that requires an object to be seen inside a band (e.g. `Y < fireY - 120`) silently drops objects when a frame is missed in a dense passage: the object jumps over the band and is never armed. Arm on first sight anywhere on the approach side of the threshold.
+- Symptom to recognise: "works for the first few, then stops" - sparse openings always satisfy a narrow window, dense sections do not.
+
+Confirmed (2026-10-26): user report "working fine for the first few notes after that it didn't work well anymore" on Piano Rhythm Tiles. Proof: user statement, fixed by widening the arming test.
+
+## After two failed attempts at one feature, suspect the constant before the detection
+Three separate detection schemes were written for one symptom (hold notes not registering). The actual fault was a single numeric constant outside the game's documented range. Before writing a fourth detection mechanism, re-read the constants involved and check them against the game's own data.
+
+Confirmed (2026-10-26): v2.10 (Y-gated), v2.11 (tile lifetime) and v2.12 (head+tail pair) all failed; v2.14 fixed it by changing one duration constant. Proof: version history plus user reports.
