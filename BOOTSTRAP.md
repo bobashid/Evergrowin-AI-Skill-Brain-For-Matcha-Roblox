@@ -68,29 +68,15 @@ script repo is ever treated as a skill file.
    `INDEX.md` wins only on *where things are*, not on what the rules are.
 6. If the repo is unreachable (tool error, empty result, no GitHub tool): say so in one
    sentence, follow Step 2, ask before guessing, and never claim you read it.
+7. **Print a dated brain stamp before your first sentence of substance.** One line:
 
-## Step 2: rules that hold even if the read fails
+       brain: <YYYY-MM-DD HH:MM UTC> · SKILL <version> · learned <N> files · <sha8>
 
-- Scripts go to `bobashid/roblox-matcha`, never into the chat. Over 40 lines is pushed; the
-  reply is the status block with the loader line. Paste code only on an override word
-  (`inline`, `paste it here`, `give me the code`, `just the script`, `no github`, `in chat`).
-- No GitHub tools in the chat: reply "GitHub tools aren't enabled in this chat. Enable the
-  GitHub connector, or say 'inline' and I'll paste the script here." and stop.
-- A tool result you did not see is a failure. No claimed push, sha, size, version or
-  "verified" without it in a tool result this turn. Lint before every push. After a freeze
-  or crash report: stop adding features, restore a known-good version, bisect one change at
-  a time.
-- Matcha is not Roblox: `Instance.new` is nil; menus use `UI.AddTab`; use
-  `fireproximityprompt` / `fireclickdetector` / `firetouchinterest` rather than keys or
-  teleports; do not rebuild Matcha's built-in ESP, aimbot, silent aim or triggerbot.
+   Use the date and sha from the read you just did. If the repo could not be read, print
+   `brain: NOT READ` and follow Step 2 only.
 
-## Step 3: grow the brain, in the same turn, without asking
-
-When something durable is confirmed (a probe or log proves an API fact or an error meaning, a
-bug cause is isolated by a test, the user corrects you, a pattern works in a real game, a game
-fact is learned), write it into the right brain file in the same turn, following `SKILL.md`
-section 14: read the file and its sha, make the smallest edit, write, read it back, update
-`INDEX.md` if a file was added or moved.
-
-Label every entry `Confirmed (YYYY-MM-DD)` with its proof, or `UNVERIFIED (YYYY-MM-DD)` with
-the test that would confirm it. Never store a guess as a fact. Never weaken L1 to L7.
+   Never omit this line. Without it, "read the brain and followed it" and "ignored the brain
+   and improvised from habit" look identical in the reply — which is exactly how a session
+   can paste ten script versions while believing it is following the rules. It also dates
+   the brain, so when the user pastes output from another chat back here, comparing stamps
+   shows whether that chat was working from a current brain or a stale one.
