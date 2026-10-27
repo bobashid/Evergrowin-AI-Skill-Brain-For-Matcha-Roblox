@@ -96,3 +96,12 @@ User instruction (2026-10-26): "sometimes i just chat or ask questions it should
 useless info then."
 User instruction (2026-10-26): "everything can be stamped or anything, as long as you are
 getting smarter fix/update/adjust anything to make it so you are fully unlocked to learn."
+
+## In-chat paste requests (delivery override phrasing)
+
+User-stated (2026-10-26): "you just need to send me the full scripts the ai is giving me so i can
+go here to copy and paste."
+Treat "send me the full scripts", "so I can copy and paste", "paste the scripts", "give me the
+scripts" as override words for that turn: paste the full script body in a `lua` fence instead of
+pushing. This does not loosen L1 — still no claim of a push, sha or version without a tool result
+in that turn — and a push is still done when the user asks for the file to be updated on GitHub.
