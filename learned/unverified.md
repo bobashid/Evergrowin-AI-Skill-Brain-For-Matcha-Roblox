@@ -2,4 +2,6 @@
 
 Guesses and root causes without a test. They are never rules. Format: `UNVERIFIED (YYYY-MM-DD): <guess>. Test that would confirm it: <test>.` When one is proven, move it to the right file as Confirmed and delete it here.
 
-(nothing added yet)
+- UNVERIFIED (2026-10-26): writing `{0,0}` into the four inner `camRecoilUp/Tilt/Left/Right` pair slots removes the camera kick in Realistic Home Defense, because those slots already hold `{min,max}` tables so the write preserves shape. Test that would confirm it: scan, flip No Recoil, fire; the camera should stop climbing while the gun still fires normally. Related: v1.0-v5.0 replaced the whole `camRecoil` table, which in this game is a table in only 2 of 35 entries, so those writes corrupted 33 slots.
+- UNVERIFIED (2026-10-26): in Realistic Home Defense the ACS settings may be copied onto the equipped tool at equip time, so a GC write can land on a table the gun no longer reads. Test that would confirm it: flip No Recoil, re-equip the same gun, fire; if the kick only disappears after re-equip, the copy happens at equip time and the script should re-equip or write after equip.
+- UNVERIFIED (2026-10-26): `applygc(cache, key, value)` accepts a filtered subset of the `getgc` result (only the entries a script kept), not just the full result. Test that would confirm it: a scan reporting `kept 2 of 35` followed by a write that returns a count above 0 and visibly changes the gun.
