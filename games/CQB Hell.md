@@ -1,32 +1,61 @@
 # CQB Hell
 
 Place id: `98689921952741` (from `matcha_status`, 2026-10-27).
-Script: `roblox-matcha/CQB Hell`, current version `v1.1`.
+Script: `roblox-matcha/CQB Hell`, current version `v1.3`.
 
 ## Features
 Weapon / NPC / Heal / Ammo ESP, one tab, four toggles, range + transparency sliders.
 
 ## Confirmed structure (probes 2026-10-27)
 
-- **Player characters** are `workspace` children with a `Humanoid`: `O_CsF`, `FakeAimbotON` (the LocalPlayer's character name equals the player name here). Exclude them by checking `Players:GetPlayers()[i].Character == inst`.
-- **NPCs** are root `Model`s with a `Humanoid`. Names: `Tec9`, `AKM`, `EnemyShotgun`, `Draco`, `Mosin`, `MP5`, plus `Draco` at partial HP. Health reads fine: `100/100`, `150/150`, `200/200`, `46.2/200`.
-- **Corpses** are the same model renamed `<Name>_Corpse` with `Humanoid.Health == 0` (e.g. `Tec9_Corpse`, `AKM_Corpse`, `Draco_Corpse`). There can be many at once (10+), so a corpse filter is needed or the ESP is noise.
-- **Equipped weapons** are `Tool` children of a character: `O_CsF.Musket`, `FakeAimbotON.Eagle.50`, `O_CsF.Makarov`, `FakeAimbotON.WM-106`.
-- **Ammo pickups** in the world are **`Part`s** named `10 Ammo` at `workspace` root (not Models - corrected 2026-10-27 by probe). Each has 5 `Decal`s, a `ProximityPrompt`, a `RefilSound` Sound and a `Config` Script. Several can exist at once. `Ammo Dispencer` is a separate `Model` whose `Button` Part carries a `ClickDetector`.
-- **Heal pickups** are cloned from `ReplicatedStorage.Heal.HealModels`, which holds **7** `MeshPart`s, every one carrying a `ProximityPrompt`: `Bandage`, `Medkit`, `Big Medkit`, `Regen Stim`, `Health Stim`, `Combat Stim`, `Coffee`. Each also has a `Put Item In ServerStorge` Script and a `CustomPromptConf` Configuration (Beam / Highlight settings).
-- **Ammo templates** live in `ReplicatedStorage.DisabledAmmo` as `ModuleScript`s (`0Ammo`, `5Ammo`, `15Ammo`, `60Ammo`, `71Ammo`, `SlugAmmo`) plus matching `Model`s. A decompiled `15Ammo` is an ACS attachment settings table (`SightZoom`, `DamageMod`, `camRecoil`, `MinSpread`, `Drum`, `Smol`, ...), not an ammo count.
-- **Other world objects** seen: `Chemlight 10x`, `Crayon 3x`, `Armor Dispencer` (x3, `ClickDetector` on `.Button`), `Random Dispencer` (`ClickDetector` on `.Button`), `wonder table.PaperMain`.
-- **Doors** use `ProximityPrompt` on `<Room>.Wooden Door.Base` and `Room1_B.Door`. Characters have a `REVIVE` ProximityPrompt.
-- Rooms are `Room1_19`, `Room1_11`, `Room1_7`, `Room1_17`, `Room1_16`, `Room1_B`; each room has `Spawner15s` parts and a `BotSpawn` script.
-- Character models carry `Health` and `Armor` Scripts and an `ACS_Client.Kit` folder; `ACS_Client.Stances.MedKit` is a `BoolValue`.
+### How to tell a player from an NPC (the important one)
+
+**NPC models are named after the gun they carry**, and names repeat:
+`RPK`, `PM`, `Slam`, `Deagle`, `AKM`, `Tec9`, `Mosin`, `MP5`, `PKM`, `Draco`, `EnemyShotgun`.
+Two `PM`, three `Slam`, four `Tec9` can be alive at the same time. A name-based exclude
+list therefore hides real NPCs the moment a player's Name or DisplayName collides with a
+weapon name (user-reported bug, fixed in v1.3).
+
+**Use a marker, not a name.** Probe of 8 live humanoid models:
+- players (`O_CsF`, `FakeAimbotON`) -> `tagY fpvY setx` = has `NameTag`, has `FPV_DynamicCam`, no `Settings`
+- NPCs (`RPK`, `Slam`, `Deagle`, `PM`) -> `tagx fpx setY` = no `NameTag`, no `FPV_DynamicCam`, has `Settings`
+
+So: `isPlayer = hasChild('NameTag') or hasChild('FPV_DynamicCam')`. Name is never consulted.
+
+### Placement
+- Most NPCs are `workspace` children, **but some are parented to a Room model** (probe saw a
+  `PM` whose parent was `Room1_19`, not `Workspace`). Collect with `workspace:GetDescendants()`, not
+  `GetChildren()`, or those NPCs are invisible to the ESP.
+- Corpses are `<Name>_Corpse` with `Humanoid.Health == 0`; 30 can be on the floor at once.
+- Health reads reliably: `100/100`, `150/150`, `200/200`, `250/250`, `2117/3000` (PKM).
+
+### Items
+- **Ammo pickups** are `Part`s named `10 Ammo` at `workspace` root, 5 `Decal`s + `ProximityPrompt`
+  + `RefilSound` + `Config` Script.
+- **Static props that are NOT pickups**: `Ammo Dispencer`, `Medkit Dispencer`, `Grenade Dispencer`,
+  `Armor Dispencer` (x3), `Random Dispencer` - all `Model`s with a `ClickDetector` on `.Button`.
+  Filter any name containing `dispenc`.
+- **Heal pickups** clone from `ReplicatedStorage.Heal.HealModels`: 7 `MeshPart`s, each with a prompt -
+  `Bandage`, `Medkit`, `Big Medkit`, `Regen Stim`, `Health Stim`, `Combat Stim`, `Coffee`.
+- **Equipped weapons** are `Tool` children of a character (`O_CsF.Musket`, `FakeAimbotON.Eagle.50`).
+- `ReplicatedStorage.DisabledAmmo` holds `ModuleScript`s (`0Ammo`, `5Ammo`, `15Ammo`, `60Ammo`,
+  `71Ammo`, `SlugAmmo`) plus matching `Model`s. A decompiled `15Ammo` is an ACS attachment
+  settings table (`SightZoom`, `DamageMod`, `camRecoil`, `MinSpread`, `Drum`, `Smol`), not a count.
+
+### Map
+- Rooms: `Room1_19`, `Room1_11`, `Room1_7`, `Room1_17`, `Room1_16`, `Room1_B`, `RoomA_2`,
+  `RoomA_5`, `RoomA_6`, `RoomA_7`. Each has `Spawner15s` parts and a `BotSpawn` script.
+- Doors: `ProximityPrompt` on `<Room>.Wooden Door.Base` and `Room1_B.Door`.
+- Characters have a `REVIVE` ProximityPrompt.
+- `ReplicatedStorage.Characters` has 20 NPC templates (`nobody`, `operator_alpha`, `chemist`, ...).
 
 ## UNVERIFIED
-- Whether a dropped heal appears at `workspace` root under its own name (only `Heal.HealModels` was inspected; no heal was on the floor during probing). The script matches on the seven MeshPart names, so a dropped clone named the same is caught.
-- Whether a dropped weapon keeps the gun model name at `workspace` root; only equipped `Tool`s were seen.
-- Ammo pickup name may vary with amount (`5 Ammo`, `15 Ammo`); the script matches any name containing `ammo`, so this is covered either way.
+- A dropped heal keeping its `HealModels` name at workspace root (none was on the floor while probing).
+- A dropped weapon keeping its gun name at workspace root (only equipped `Tool`s were seen).
+- Every player character carrying `NameTag` + `FPV_DynamicCam` (2 of 2 observed).
 
 ## Notes
-- `matcha_scripts` / `matcha_search` need `matcha_reindex` after joining; the index went stale mid-session (`index not found`).
-- `matcha_decompile` by path failed with `instance not found` for `Room1_19.BotSpawn` (the part existed but the script was not indexed yet); `matcha_exec` + `decompile(instance)` inside the VM is the reliable route.
-- Several `matcha_exec` calls returned garbled or duplicated log lines when printing many short strings; printing one `table.concat`ed string per call was cleaner.
-- **A push reported a sha and size but the next read said `path does not point to a file or directory`.** The write had not landed despite the success-looking result. Re-pushing with the same content worked. Always `get_file_contents` the path after a push before replying; a reported sha alone is not proof the file exists.
+- `matcha_scripts` / `matcha_search` need `matcha_reindex` after joining.
+- `matcha_decompile` by path can return `instance not found`; `decompile(instance)` inside `matcha_exec` works.
+- Printing many short strings in one `matcha_exec` garbles the log tail; use one `table.concat`ed string.
+- A push can report a sha and size while the file is not there. Always read the path back.
