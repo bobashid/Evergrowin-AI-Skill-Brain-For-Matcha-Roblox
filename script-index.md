@@ -14,6 +14,7 @@ the same turn.** That is part of the push procedure, not an extra step.
 |---|---|---|---|
 | `CQB Hell` | 98689921952741 | ~21k | `games/CQB Hell.md` |
 | `Merge Block Arena` | 76024476718474 | 10698 | `games/Merge Block Arena.md` |
+| `Merge Block Arena Weapons` | 76024476718474 (alt) | 7996 | `games/Merge Block Arena.md` |
 | `Piano Rhythm Tiles` | 101999883467300 | 15147 | `games/Piano Rhythm Tiles.md` |
 | `Realistic Home Defense` | 105527962898452 | 14208 | `games/Realistic Home Defense.md` |
 | `Chop A Forest` | 103363457515322 | 21785 | - |
@@ -28,13 +29,16 @@ the same turn.** That is part of the push procedure, not an extra step.
 | `What If Disasters` | 109440485612336 | 40823 | - |
 | `+1 Upgrade Per Kill` | 113273588963037 | 27161 | - |
 | `Build And Kill Zombies` | 105011592530400 | 8355 | - |
-| `Hub` | n/a (loader) | 6221 | `hub-sync.md` |
+| `Hub` | n/a (loader) | 6468 | `hub-sync.md` |
 
 ## Notes on the table
 
 - **`game.Name` is not always the game.** Merge Block Arena reports `game.Name == 'Ugc'`, the
   creator group's name. Its file is named after the real title found from the place page. Check
   a suspicious name against the web before naming a file after it.
+- **Two scripts can share one place id.** `PLACES` holds one per id: Merge Block Arena is pinned
+  and the Weapons build loads with `_G.Hub.load('Merge Block Arena Weapons')`. Same arrangement
+  as Prison Life. Both stay in `SCRIPTS` so manual load keeps working.
 - **Prison Life has two scripts on one place id.** `PLACES` can hold one, so it points at
   `PRISON LIFE TRIGGERBOT`; the HvH build is reachable with
   `_G.Hub.load('Prison Life HvH')`. Both stay in `SCRIPTS` so manual load keeps working.
