@@ -3,6 +3,23 @@
 Place id: `98689921952741` (from `matcha_status`, 2026-10-27).
 Script: `roblox-matcha/CQB Hell`, current version `v3.0` (weapon mods only).
 
+## Config size causes input lag - keep the NPC list small
+
+User-stated (2026-10-27): "im also noticing that its more delayed the more people i add".
+
+The 59-entry config was already too big; expanding it toward 65 makes input progressively
+worse. Every `npc_map` entry is a match predicate evaluated against the model tree, so cost
+scales with entry count. This map only spawns 6-14 unique NPC names, so most of a 59-entry
+list can never match anything - it is pure per-frame overhead.
+
+Corrective actions taken in advice: stop unioning names across maps, stop adding speculative
+case variants, and trim to what a live probe actually reports. Full cost model, budget
+(10-25 entries) and the rebuild probe live in `matcha-npc-cfg.md` under
+"COST: every entry is a scan".
+
+Note: the weapon-only `CQB Hell` v3.0 has no ESP and no scanning loop, so it is NOT the
+cause of this lag. Check the config entry count before blaming any script.
+
 ## Enemy names - the authoritative list (59, from the user's own config)
 
 Supersedes every earlier partial list. The user pasted the full JSON config (2026-10-27);
@@ -19,9 +36,8 @@ Shotgun, Slam, Smiley, Spectre, Standard4, TT-33, Tec9, USP, VAL, VSK,
 VZ-16, VZ-82, VZ-94, VZS-74U, p226
 ```
 
-So NPC names are gun-model names, not a small fixed set - 59 and counting. This is why a
-hardcoded script list was never the right approach, and why the user's own config is the best
-source: it is what he saw spawning.
+This list is a REFERENCE of every name ever seen, not a config to paste in full. Pasting all
+59 is what caused the lag above. Use it to pick from, and keep the live config to 10-25.
 
 ## NPC index coverage - what the 59 miss
 
@@ -37,7 +53,6 @@ Checked the 59 against every other name source this session. Ranked by evidence 
 **Gun-pool names from one in-game read (likely, unconfirmed):**
 - `AP5`, `AK-74` (read A, 14 unique / 41 instances)
 - `GV-15` (read B) - the config has `DW-15`; almost certainly the same enemy, one mistyped.
-  Include BOTH spellings.
 
 **Single read of unknown validity:**
 - `IWC-577` (read C, taken while the user was not confirmed in-server)
@@ -45,20 +60,15 @@ Checked the 59 against every other name source this session. Ranked by evidence 
 **Do NOT add without testing:**
 - `WM-106` - this is the player's own held gun (`Workspace.Camera.Viewmodel.WM-106`).
   A `Name Contains` entry for it can match the local viewmodel, i.e. aim at yourself.
-  It is in `Camera.Viewmodel.WM-106`, and the Viewmodel model carries a Humanoid.
 
 **Spelling risks inside the existing 59:**
-- `DB` in the config vs `Db` in a live probe. If Matcha matches case-sensitively, `DB`
-  never hits. Safest fix is to add `Db` as a second entry (keys are distinct).
-- `DW-15` vs probed `GV-15` - see above.
+- `DB` in the config vs `Db` in a live probe. Do NOT add both pre-emptively - each entry is
+  a full scan. Test `DB` first, add `Db` only if it fails to match.
+- `DW-15` vs probed `GV-15` - same rule, one at a time.
 
 **Never add (they carry a Humanoid, so `Contains` catches them):**
 `Viewmodel`, `Dummy`, `DummyTwo`, `Medkit Dispenser`, `Armor Dispenser`,
 `Grenade Dispenser`, `Random Dispencer`, `Ammo Dispencer`.
-
-**Per-round verification beats any static list.** The gun pool is rebuilt per map (three
-reads gave 14 / 6 / 8 unique), so the config should be topped up from a live read each
-round. Probe and validation rules live in `matcha-npc-cfg.md`.
 
 ## Six bugs found in that config (fixed version delivered)
 
@@ -71,11 +81,8 @@ round. Probe and validation rules live in `matcha-npc-cfg.md`.
    enable_skeleton: false` among 58 identical ones - leftover, not a preference.
 6. `npc_order` did not equal the `npc_map` keys because of the `""` entry.
 
-Left deliberately untouched: `DB` vs live `Db`, `DW-15` vs probed `GV-15` (possible
-misspellings - both spellings would be safe to include), and `is_hostile: false` on all 59
-(unknown semantics in Matcha; flipping blind could mark enemies as allies).
-
-The config schema, entry template and validation checklist now live in `matcha-npc-cfg.md`.
+`is_hostile: false` on all 59 is left untouched - unknown semantics in Matcha, and flipping
+blind could mark enemies as allies.
 
 ## Weapon settings are NumberValues, not GC tables
 
@@ -115,12 +122,6 @@ Name is never consulted; NPC names are gun names and collide with player names. 
 models are DIRECT `workspace` children named after the player, ~20 per server.
 `LocalPlayer.Character` is intermittent here, so resolve by `workspace[LocalPlayer.Name]`.
 
-## Names that are NOT enemies - never add these
-
-`Viewmodel` (local player's own arms, has a Humanoid), `Dummy`, `DummyTwo`,
-`Medkit Dispenser`, `Armor Dispenser`, `Grenade Dispenser`, `Random Dispencer`,
-`Ammo Dispencer`.
-
 ## Other structure
 - Corpses are `<Name>_Corpse` with `Humanoid.Health == 0`; 30 can be on the floor at once.
 - Ammo pickups are `Part`s named `10 Ammo` at `workspace` root, 5 `Decal`s + `ProximityPrompt`
@@ -138,8 +139,7 @@ models are DIRECT `workspace` children named after the player, ~20 per server.
 - Whether the gun pool truly rotates per map or was just not streamed in.
 - `ReplicatedStorage.PreMade` contents - never opened.
 - What `Bots.AIG` / `Bots.AIS` are, and whether either returns a spawn table.
-- Whether `ReplicatedStorage.Characters` template names (`capri`, `chemist`, ...) are ever
-  used as bot display names - no live NPC has been seen using one.
+- Whether the `ReplicatedStorage.Characters` template names are ever used as bot display names.
 - Whether `AP5`, `AK-74`, `GV-15`, `Webley`, `IWC-577` actually spawn as NPCs (all from
   gun-pool reads, not from a live humanoid probe).
 
