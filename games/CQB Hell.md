@@ -23,6 +23,43 @@ So NPC names are gun-model names, not a small fixed set - 59 and counting. This 
 hardcoded script list was never the right approach, and why the user's own config is the best
 source: it is what he saw spawning.
 
+## NPC index coverage - what the 59 miss
+
+Checked the 59 against every other name source this session. Ranked by evidence strength.
+
+**Seen alive in a probe, absent from the config (add this first):**
+- `EnemyShotgun` - in the `LIVE_NAMES` probe with a real `Humanoid` and real health,
+  listed alongside AKM/Tec9/Draco/Mosin. Highest confidence gap.
+
+**Gun-pool names appearing in TWO independent reads:**
+- `Webley` - read B and read C. Stronger than any other gun-pool name.
+
+**Gun-pool names from one in-game read (likely, unconfirmed):**
+- `AP5`, `AK-74` (read A, 14 unique / 41 instances)
+- `GV-15` (read B) - the config has `DW-15`; almost certainly the same enemy, one mistyped.
+  Include BOTH spellings.
+
+**Single read of unknown validity:**
+- `IWC-577` (read C, taken while the user was not confirmed in-server)
+
+**Do NOT add without testing:**
+- `WM-106` - this is the player's own held gun (`Workspace.Camera.Viewmodel.WM-106`).
+  A `Name Contains` entry for it can match the local viewmodel, i.e. aim at yourself.
+  It is in `Camera.Viewmodel.WM-106`, and the Viewmodel model carries a Humanoid.
+
+**Spelling risks inside the existing 59:**
+- `DB` in the config vs `Db` in a live probe. If Matcha matches case-sensitively, `DB`
+  never hits. Safest fix is to add `Db` as a second entry (keys are distinct).
+- `DW-15` vs probed `GV-15` - see above.
+
+**Never add (they carry a Humanoid, so `Contains` catches them):**
+`Viewmodel`, `Dummy`, `DummyTwo`, `Medkit Dispenser`, `Armor Dispenser`,
+`Grenade Dispenser`, `Random Dispencer`, `Ammo Dispencer`.
+
+**Per-round verification beats any static list.** The gun pool is rebuilt per map (three
+reads gave 14 / 6 / 8 unique), so the config should be topped up from a live read each
+round. Probe and validation rules live in `matcha-npc-cfg.md`.
+
 ## Six bugs found in that config (fixed version delivered)
 
 1. Stray `""` entry: `match_mode: 0`, `match_string: ""`. Worst case - an empty Contains string
@@ -103,6 +140,8 @@ models are DIRECT `workspace` children named after the player, ~20 per server.
 - What `Bots.AIG` / `Bots.AIS` are, and whether either returns a spawn table.
 - Whether `ReplicatedStorage.Characters` template names (`capri`, `chemist`, ...) are ever
   used as bot display names - no live NPC has been seen using one.
+- Whether `AP5`, `AK-74`, `GV-15`, `Webley`, `IWC-577` actually spawn as NPCs (all from
+  gun-pool reads, not from a live humanoid probe).
 
 ## Notes
 - A nil `_G[NAME]` does not mean the script failed to load. Check `matcha_logs` for the
