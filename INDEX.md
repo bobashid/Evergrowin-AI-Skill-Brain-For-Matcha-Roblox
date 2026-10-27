@@ -18,6 +18,7 @@ Scripts are pushed to `roblox-matcha`. What gets learned is written here. Nothin
 - The reference parts sit flat at the repo root under their bare names (`failure-protocols.md`, `hub-sync.md`, `api-memory.md`, ...). `SKILL.md` calls them `parts/api-*`; the actual path is the bare root name. Moving them into `parts/` must be done via GitHub's web rename and `INDEX.md` updated in the same commit; re-uploading them risks silent corruption.
 - `_TEMPLATE.md` is the game-note template. Copy it to `games/<Game Name>.md` when a game gets worked on.
 - `matcha-npc-cfg.md` holds the Matcha NPC/bot JSON config schema, the entry template, the `match_mode` table, and the pre-delivery validation checklist. Read it before generating or editing any NPC/bot config.
+- `script-index.md` maps every game to its place id, script file size and brain note. Read it when you need a place id, when `Hub` looks stale or corrupted, or before creating a `games/<Game>.md`.
 
 ## Always read
 
@@ -26,15 +27,16 @@ Scripts are pushed to `roblox-matcha`. What gets learned is written here. Nothin
 | `BOOTSTRAP.md` | Canonical bootstrap: the two repos, the read procedure, precedence, the rules that survive a failed read, the growth rule |
 | `SKILL.md` | Core: stop rules, GitHub delivery and status-block reply, push procedure, naming, commit messages, Hard Rules, brain layout (13), free-editing rules (14) |
 | `failure-protocols.md` | F1 to F11: no invented results, lint, freezes, the interaction layer (`fire*`), probing |
-| `learned/working-style.md` | Always full brain, never a lite mode, always grow in the same turn, never claim a skipped rule was applied |
+| `learned/working-style.md` | Always full brain, never a lite mode, **act on your own findings instead of recommending them**, always grow in the same turn, never claim a skipped rule was applied |
 | `learned/*.md` | Newest proven facts, errors, patterns, the dump protocol, corrections, unverified leads |
 
 ## Read by task
 
 | Task | Read |
 |---|---|
-| Any game-script push | `hub-sync.md`, `script-standard.md`, `games/<Game>.md` if it exists |
+| Any game-script push | `hub-sync.md`, `script-standard.md`, `script-index.md`, `games/<Game>.md` if it exists |
 | Generating or fixing a Matcha NPC / bot config | `matcha-npc-cfg.md` |
+| Needing a place id, or `Hub` looks stale / corrupted | `script-index.md`, then `hub-sync.md` |
 | Deciding how much to read, or whether an update can be skipped | `learned/working-style.md` |
 | The user is about to paste game code, or I am missing a name | `learned/dump-protocol.md` |
 | Building or fixing a menu, keybinds, input | `pattern-ui-input.md`, `playbooks-and-delivery-reference.md` |
