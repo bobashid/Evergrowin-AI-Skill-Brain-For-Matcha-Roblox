@@ -3,36 +3,50 @@
 Place id: `98689921952741` (from `matcha_status`, 2026-10-27).
 Script: `roblox-matcha/CQB Hell`, current version `v3.0` (weapon mods only).
 
-## Weapon names: the pool ROTATES per map (no static list exists)
+## READ THIS FIRST: probe results are only valid while fully in a server
 
-There is no folder holding every weapon in the game. `ACS_Engine.GunModels` is rebuilt for
-each map, proven by three reads hours apart that barely overlap:
+User-stated (2026-10-27): "i wasnt in the game for some of it". Several weapon-folder
+probes in this session were taken while the client was **not fully loaded into a server**.
+That invalidates them as evidence. Specifically suspect:
 
-| Read | Unique gun names |
-|---|---|
-| A | 14 unique (41 instances) - `AP5, AKM, AK-74, Mosin, MP5, WM-106` confirmed individually |
-| B | 6 unique - `AKM, GV-15, R8-Shorty, VZ-82, VZ-94, Webley` |
-| C | 8 unique - `G18, IWC-577, R8-Shorty, RG-14, RG-20, VZ-82, VZ-94, Webley` |
+- `SpecialWeapons` -> "0 children"
+- `WeaponDrops` -> "0 children"
+- `GunModels` shrinking 14 -> 6 -> 8 unique
 
-B and C share only 3 names (`R8-Shorty, VZ-82, VZ-94`). So a list built from one round is
-wrong for the next one.
+The shrinking pool is at least as likely to be "map not streamed in yet" as a real per-map
+rotation. **Re-probe all of these with the user confirmed in-game before trusting any of it.**
 
-### Containers checked, with what they actually hold
+Rule: before treating a `matcha_exec` result about world/RS contents as fact, confirm
+`matcha_status` reports `in_game: true` AND the user says they are in a server. An empty
+folder read during loading is indistinguishable from a genuinely empty folder.
+
+## Weapon names (UNCONFIRMED - needs a clean in-server read)
+
+What is written below was collected across reads of unknown validity. Do not present it to
+the user as final until re-probed in-server.
+
+`ACS_Engine.GunModels` reads, in order:
+
+| Read | Unique gun names | Trust |
+|---|---|---|
+| A | 14 unique (41 instances) - `AP5, AKM, AK-74, Mosin, MP5, WM-106` confirmed individually | in-game, but log-truncated after 6 |
+| B | 6 unique - `AKM, GV-15, R8-Shorty, VZ-82, VZ-94, Webley` | in-game |
+| C | 8 unique - `G18, IWC-577, R8-Shorty, RG-14, RG-20, VZ-82, VZ-94, Webley` | validity unknown |
+
+Containers checked:
 
 ```
-ReplicatedStorage.SpecialWeapons   -> exists, 0 children   (empty)
-ReplicatedStorage.WeaponDrops      -> exists, 0 children   (empty)
+ReplicatedStorage.SpecialWeapons   -> reported 0 children  (SUSPECT - re-probe in-server)
+ReplicatedStorage.WeaponDrops      -> reported 0 children  (SUSPECT - re-probe in-server)
 ReplicatedStorage.Weapons          -> absent / empty (guns clone in at runtime)
 ReplicatedStorage.Manufacturers    -> 4 children: VZ, MPD, FM, RRG   (brands, not guns)
 ReplicatedStorage.DisabledAmmo     -> ammo ATTACHMENT settings Modules, not guns
-ACS_Engine.GunModels               -> the live per-map gun pool (authoritative for this map)
-ACS_Engine.Attachments            -> attachments, not guns
+ACS_Engine.GunModels               -> the live gun pool (authoritative IF read in-server)
+ACS_Engine.Attachments             -> attachments, not guns
+ReplicatedStorage.PreMade          -> NOT YET OPENED - last unchecked candidate
 ```
 
-`Manufacturers` (VZ, MPD, FM, RRG) are brand prefixes, which explains names like `VZ-82`
-and `VZ-94`; it is not a weapon list itself.
-
-### Union of every weapon name confirmed in ANY round
+Provisional union (do not publish as complete until re-probed in-server):
 
 ```
 AK-74, AKM, AP5, Db, Deagle, Draco, EnemyShotgun, G18, GV-15, IWC-577,
@@ -40,9 +54,7 @@ Mosin, MP5, Musket, Nagant, PKM, PM, R8-Shorty, RG-14, RG-20, RPK,
 Slam, Tec9, TT-33, VZ-82, VZ-94, Webley, WM-106
 ```
 
-27 names. Over-covering costs nothing; a missing name loses kills.
-
-### Read the exact current set every round
+### Read the current set (run only when in a server)
 
 ```lua
 local g = game:GetService('ReplicatedStorage').ACS_Engine.GunModels
@@ -51,46 +63,31 @@ for _, c in ipairs(g:GetChildren()) do
     if not seen[c.Name] then seen[c.Name] = true; table.insert(out, c.Name) end
 end
 table.sort(out)
+print('COUNT ' .. #out)
 print(table.concat(out, ', '))
 ```
 
-Or from the live world (catches enemies whose gun is not in `GunModels`):
+Log output truncates around 100 characters, so print the count on its own line first.
 
-```lua
-local seen, out = {}, {}
-for _, v in ipairs(workspace:GetDescendants()) do
-    if v.ClassName == 'Model' and v:FindFirstChildOfClass('Humanoid') then
-        local n = (v.Name:gsub('_Corpse$', ''):gsub('GP$', ''))
-        if n ~= 'Viewmodel' and n ~= 'Dummy' and n ~= 'DummyTwo' and not seen[n] then
-            seen[n] = true; table.insert(out, n)
-        end
-    end
-end
-table.sort(out)
-print(table.concat(out, ', '))
-```
+## There is NO global enemy-name folder (confirmed by re-probe)
 
-## There is NO global enemy-name folder (corrects an earlier false entry)
-
-Earlier this session I recorded that `ReplicatedStorage.EnemyDB.Enemies` was the game's
-enemy catalogue holding 6 names. **That was wrong.** The results it came from were stale
-`matcha_exec` echoes. Re-probing with different code shapes returned:
+`ReplicatedStorage.EnemyDB.Enemies` does **not** exist. An earlier entry claiming it held 6
+enemy names came from stale `matcha_exec` echoes. Re-probed with different code shapes:
 
 ```
 ENEMYDB n=27 :: DefaultROBLOXRegen:Script, Humanoid:Humanoid, Body Colors:BodyColors,
                 Beams:Folder, Settings:Folder, Shirt:Shirt, ...
 EnemyDB:FindFirstChild('Enemies')  -> nil   (NO_ENEMIES)
 EnemyDB:FindFirstChild('Data')     -> nil   (NO_DATA)
-ReplicatedStorage.Bots children    -> AIG, AIS   (2, not BotsConfig)
+ReplicatedStorage.Bots children    -> AIG, AIS
 Bots:FindFirstChild('BotsConfig')  -> nil   (NO_CFG)
 ```
 
-`EnemyDB` is an NPC-like **Model** (Humanoid + Body Colors + Settings + Shirt), not a
-database folder. `Bots` holds `AIG`/`AIS`, likely the bot AI scripts.
+`EnemyDB` is an NPC-like **Model** (Humanoid + Body Colors + Settings + Shirt). `Bots` holds
+`AIG`/`AIS`, likely bot AI scripts. Neither is a name list.
 
-Rule learned: when two `matcha_exec` calls disagree, and one answers a *different question*
-than the one asked, that one is the stale echo. Discard it and re-probe with a changed
-prefix or index range before writing anything into the brain.
+Rule: when two `matcha_exec` calls disagree and one answers a *different question* than the
+one asked, that one is the stale echo. Discard and re-probe with a changed prefix.
 
 ### Names that are NOT weapons/enemies - never add these
 
@@ -103,10 +100,8 @@ Observed live with a `Humanoid`, so a naive `Contains` filter catches them:
   `Random Dispencer`, `Ammo Dispencer`.
 
 **Keep `Ignore Players` ON.** Players carry `NameTag` + `FPV_DynamicCam`; NPCs carry a
-`Settings` folder. A `Contains` match on a short name can otherwise hit a player.
-
-Use **Match Mode = `Name Contains`** with the plain name: `AKM` (body), `AKMGP` (wrapper)
-and `AKM_Corpse` (dead) are all caught by one entry.
+`Settings` folder. Use **Match Mode = `Name Contains`** with the plain name: `AKM` (body),
+`AKMGP` (wrapper) and `AKM_Corpse` (dead) are all caught by one entry.
 
 ## Weapon settings are NumberValues, not GC tables
 
@@ -160,23 +155,23 @@ Character models are DIRECT `workspace` children named after the player, ~20 per
   `RoomA_5`, `RoomA_6`, `RoomA_7`; `ProximityPrompt` doors; `REVIVE` prompts on characters.
 
 ## UNVERIFIED
-- The ammo NumberValue name inside a live gun (no gun equipped while probing).
+- Whether `SpecialWeapons` / `WeaponDrops` are genuinely empty (reads taken out of server).
+- Whether the `GunModels` pool truly rotates per map or was just not streamed in.
+- The full 14-name list from round A (log truncation cut it after 6).
+- `ReplicatedStorage.PreMade` contents - never opened.
+- The ammo NumberValue name inside a live gun.
 - Whether the server honours client-side `Firerate` / `ReloadDelay` writes.
-- Whether `ReplicatedStorage.Characters` template names (`capri`, `chemist`, ...) are ever
-  used as bot display names - no live NPC has been seen using one.
-- What `Bots.AIG` / `Bots.AIS` are, and whether either returns a spawn table.
-- What the `EnemyDB` Model is for (it has a Humanoid and Settings, like an NPC body).
-- The full 14-name list from round A (only 6 of it was printed before log truncation).
+- Whether `Bots.AIG` / `Bots.AIS` return a spawn table.
+- What the `EnemyDB` Model is for.
 
 ## Notes
 - A nil `_G[NAME]` does not mean the script failed to load. Check `matcha_logs` for the
   `[NAME] stopped` line: that is my own `stop()` firing.
 - `matcha_scripts` / `matcha_search` need `matcha_reindex` after joining.
-- Printing many short strings in one `matcha_exec` garbles or truncates the log tail; a long
-  `table.concat` gets cut at roughly 100 characters. Print one or two values per call.
+- Printing many short strings in a `matcha_exec` garbles or truncates the log tail; a long
+  `table.concat` gets cut at roughly 100 characters. Print the count on its own line first.
 - **A `matcha_exec` call can return a plausible-looking result that is NOT current.** Seen:
-  `R5TO8 ...` placeholders, an earlier block echoed verbatim, and probe results answering a
-  different question than asked. Treat a repeat, or a wrong-question answer, as a failed call;
-  change the prefix or range and re-run before trusting it.
+  `R5TO8 ...` placeholders, an earlier block echoed verbatim, and answers to a different
+  question than asked. Treat a repeat, or a wrong-question answer, as a failed call.
 - A push can report a sha and size while the file is not there, or return a body that differs
   from what was sent. Always read the path back and compare.
