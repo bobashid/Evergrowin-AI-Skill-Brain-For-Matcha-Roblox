@@ -11,30 +11,56 @@ outer wrapper adds `GP`, and a dead one adds `_Corpse`. So a Matcha NPC entry wi
 **Match Mode = Name Contains** and **Match String = the plain name** catches all three
 forms (`AKM`, `AKMGP`, `AKM_Corpse`) without extra entries.
 
-Confirmed alive in one probe (`LIVE_NAMES`, 27 humanoid models):
+### The name pool VARIES BY MAP / ROUND
 
+Two rounds probed hours apart gave different pools, so neither list is complete on its own.
+
+Round A (`LIVE_NAMES`, 27 humanoid models, 16 unique enemies):
 ```
 AKM, Brian the Hero, Draco, Deagle, Db, EnemyShotgun, Mosin, MP5,
 Nagant, PKM, PM, RPK, Slam, Tec9, TT-33, Musket
 ```
 
-Confirmed from the gun-model pool (`ReplicatedStorage.ACS_Engine.GunModels`, 14 unique):
-
+Round B (`LIVE_NAMES`, 10 humanoid models, 5 unique enemies):
 ```
-AP5, AKM, AK-74, Mosin, MP5, ...   (the rest duplicate the live names above)
+AKM, Draco, EnemyShotgun, Mosin, Tec9
 ```
 
-Seen in the user's own Matcha NPC list screenshot (adds nothing new, but confirms them):
-`Db, AKM, Tec9, Mosin, RPK, Slam, Deagle, Draco, PKM, TT-33, PM, Musket, Nagant,
-Brian the Hero`.
+`ACS_Engine.GunModels` count also differs: 41 instances / 14 unique in round A, only
+**6 unique** in round B (`AKM, GV-15, R8-Shorty, VZ-82, VZ-94, Webley`). So the gun pool is
+loaded per map; a name list built from one round misses guns that only exist on another map.
 
-**Do NOT add these — they are props, not enemies:** `Medkit Dispenser`,
-`Armor Dispenser`, `Grenade Dispenser`, `Random Dispencer`, `Ammo Dispencer`. Their models
-sit in the world with a `ClickDetector`, and adding one makes silent aim track a wall.
+**Union list to paste into Matcha** (all names ever seen alive in either round):
+```
+AKM, Brian the Hero, Db, Deagle, Draco, EnemyShotgun, Mosin, MP5,
+Musket, Nagant, PKM, PM, RPK, Slam, Tec9, TT-33
+```
+Plus the round-B-only gun names, which are enemies when mounted:
+```
+GV-15, R8-Shorty, VZ-82, VZ-94, Webley
+```
+
+### Names that are NOT enemies - never add these
+
+Observed live with a `Humanoid`, so a naive `Contains` filter catches them:
+- `Viewmodel` - the LOCAL PLAYER'S OWN first-person arms, parented under
+  `workspace.Camera.Viewmodel`. Has a Humanoid. Silent aim on this targets yourself.
+- `Dummy`, `DummyTwo` - training dummies under `workspace.Start`.
+- Player character models, named exactly after the player (`O_CsF`, `FakeAimbotON`).
+- Wall props: `Medkit Dispenser`, `Armor Dispenser`, `Grenade Dispenser`,
+  `Random Dispencer`, `Ammo Dispencer`.
 
 **Keep `Ignore Players` ON** in the NPC entry. Player characters are direct `workspace`
 children named after the player and carry `NameTag` + `FPV_DynamicCam`; NPCs carry a
 `Settings` folder instead. A `Contains` match on a short name can otherwise hit a player.
+
+### Possible bot display names (UNVERIFIED)
+
+`ReplicatedStorage.Characters` holds 20 templates: `capri, chemist, contract, deserter,
+informant, kalyna, maid, michael, nobody, operator_alpha, pavlo, remnant, teto, theif,
+thony, thonymaid, time, trench, wolf, yarik`. No live NPC was ever seen using one of these
+names - live NPCs are gun-named. Test: if a bot ever appears with a name from this list,
+add it; otherwise these are only the character *appearance* templates.
 
 ## Weapon settings are NumberValues, not GC tables
 
@@ -116,20 +142,21 @@ Character models are DIRECT `workspace` children named after the player, ~20 per
 - Heal pickups clone from `ReplicatedStorage.Heal.HealModels`: 7 `MeshPart`s, each with a prompt -
   `Bandage`, `Medkit`, `Big Medkit`, `Regen Stim`, `Health Stim`, `Combat Stim`, `Coffee`.
 - Equipped weapons are `Tool` children of a character.
-- `ReplicatedStorage.Weapons` is EMPTY (guns clone in at runtime); the model pool is
-  `ReplicatedStorage.ACS_Engine.GunModels` (41 instances, 14 unique names).
+- `ReplicatedStorage.Weapons` is EMPTY / absent (guns clone in at runtime); the model pool is
+  `ReplicatedStorage.ACS_Engine.GunModels` (a `Configuration`). Count is map-dependent:
+  41 instances / 14 unique in round A, 6 unique in round B.
 - Rooms: `Room1_19`, `Room1_11`, `Room1_7`, `Room1_17`, `Room1_16`, `Room1_B`, `RoomA_2`,
   `RoomA_5`, `RoomA_6`, `RoomA_7`; `ProximityPrompt` doors; `REVIVE` prompts on characters.
-- `ReplicatedStorage.Characters` holds 20 character templates (`nobody`, `operator_alpha`,
-  `chemist`, ...) which are NOT the gun-named combat NPCs.
+- `ReplicatedStorage.Characters` holds 20 character templates which are NOT the gun-named
+  combat NPCs (see the UNVERIFIED note above).
 
 ## UNVERIFIED
 - The ammo NumberValue name inside a live gun (no gun equipped while probing).
 - Whether the server honours client-side `Firerate` / `ReloadDelay` writes, or recomputes
   them on its own tick and overwrites the client copy.
-- Whether `GunModels` (14 unique) is the complete NPC name pool, or only the guns currently
-  mounted; the live list had names (`Brian the Hero`, `Db`, `TT-33`, `Nagant`, `Musket`)
-  that were not all present in that folder.
+- Whether the `ReplicatedStorage.Characters` template names are ever used as bot display names.
+- Whether the gun pool ever holds more than ~14 unique names (41 instances / 14 unique was the
+  largest seen; one round had only 6).
 
 ## Notes
 - A nil `_G[NAME]` does not mean the script failed to load. Check `matcha_logs` for the
@@ -138,5 +165,9 @@ Character models are DIRECT `workspace` children named after the player, ~20 per
 - Printing many short strings in one `matcha_exec` garbles or truncates the log tail;
   a long `table.concat` also gets cut at roughly 100 characters. Print one or two values
   per call when the payload matters.
+- **A `matcha_exec` call can return a plausible-looking result that is NOT current.** One
+  probe in this session returned `R5TO8 ...` style placeholders and another echoed an earlier
+  block (same `A|AP5|AKM|AK-74|Mosin` output twice). Treat a repeat of an earlier string as a
+  failed call and re-shape the probe (change the prefix or the range) before trusting it.
 - A push can report a sha and size while the file is not there, or return a body that
   differs from what was sent. Always read the path back and compare.
