@@ -3,11 +3,57 @@
 Place id: `98689921952741` (from `matcha_status`, 2026-10-27).
 Script: `roblox-matcha/CQB Hell`, current version `v3.0` (weapon mods only).
 
-## READ THIS FIRST: probe results are only valid while fully in a server
+## The user's Matcha config is the best name source (2026-10-27)
 
-User-stated (2026-10-27): "i wasnt in the game for some of it". Several weapon-folder
-probes in this session were taken while the client was **not fully loaded into a server**.
-That invalidates them as evidence. Specifically suspect:
+The user exported their Matcha settings as `CQB HELL.cfg` (59,787 bytes, 134 chunks). It is
+more trustworthy than a live probe for one reason: the names in it are ones the user saw
+spawning and typed in himself, not names read from a possibly-not-yet-loaded server.
+
+Structure: `[ESP]`, `[NPC]` (Entries=17, each `N.Name/Path/MatchMode/MatchString`),
+`[SilentAim]`, `[Weapon]`.
+
+### Enemy entries that are correct (14 of the 17 slots)
+
+```
+Db, AKM, Tec9, Mosin, RPK, Deagle, Draco, PKM, TT-33, PM, Musket, Nagant
+```
+
+Plus `Tec9` listed twice (slots 6 and 8) and `RPK` appearing as a MatchString in slot 6.
+
+### Bugs found in the config - tell the user these
+
+1. **Slot 6 is `Name=Tec9` but `MatchString=RPK`.** A duplicate-name copy/paste. That entry
+   does NOT cover Tec9; it duplicates the RPK entry. Fix: set 6.MatchString to `Tec9` or
+   delete it (slot 3 already covers Tec9).
+2. **Slots 15, 16, 17 are wall props**, not enemies: `Medkit Dispenser`, `Armor Dispenser`,
+   `Armor Dispenser`. Three of seventeen slots wasted, and each makes silent aim able to
+   lock onto a wall. Delete all three.
+3. **Duplicated keys** scattered through the file (`5.MatchMode` twice, `6.Name` twice,
+   `8.Path` twice, `15/16/17.Name` three times each). Harmless at load (last wins) but a
+   sign of hand-editing; worth a clean re-save.
+4. `[SilentAim]` has `TargetPlayers=false` and `IgnoreDead=true`. That matches this game:
+   NPCs are gun-named, players are named after the account, and 30 corpses can be on the
+   floor. Leave both as they are.
+5. `FOV=180` is very wide and `Smoothing=0.35` is heavy. If aim feels like it drags or snaps
+   to the wrong target, tighten FOV first (90-120), then lower smoothing.
+
+## Names still missing from the config
+
+Confirmed alive in live probes but absent from the 17 entries:
+
+```
+Brian the Hero, EnemyShotgun, MP5, Slam, GV-15, R8-Shorty, VZ-82, VZ-94, Webley,
+G18, IWC-577, RG-14, RG-20, WM-106, AK-74, AP5
+```
+
+`EnemyShotgun`, `MP5` and `Slam` in particular were in a live probe with real health values,
+so they are real enemies the config does not cover.
+
+## READ THIS: probe results are only valid while fully in a server
+
+User-stated (2026-10-27): "i wasnt in the game for some of it". Several weapon-folder probes
+in this session were taken while the client was **not fully loaded into a server**. That
+invalidates them as evidence. Specifically suspect:
 
 - `SpecialWeapons` -> "0 children"
 - `WeaponDrops` -> "0 children"
@@ -21,9 +67,6 @@ Rule: before treating a `matcha_exec` result about world/RS contents as fact, co
 folder read during loading is indistinguishable from a genuinely empty folder.
 
 ## Weapon names (UNCONFIRMED - needs a clean in-server read)
-
-What is written below was collected across reads of unknown validity. Do not present it to
-the user as final until re-probed in-server.
 
 `ACS_Engine.GunModels` reads, in order:
 
@@ -173,5 +216,8 @@ Character models are DIRECT `workspace` children named after the player, ~20 per
 - **A `matcha_exec` call can return a plausible-looking result that is NOT current.** Seen:
   `R5TO8 ...` placeholders, an earlier block echoed verbatim, and answers to a different
   question than asked. Treat a repeat, or a wrong-question answer, as a failed call.
+- **`retrieve` can fail on a large `.cfg` while `get_chunks` succeeds.** The cfg is 134 chunks;
+  `retrieve` returned malformed citations with no cfg passages, `get_chunks` read it fine.
+  Use `get_chunks` in small ranges for structured config files.
 - A push can report a sha and size while the file is not there, or return a body that differs
   from what was sent. Always read the path back and compare.
