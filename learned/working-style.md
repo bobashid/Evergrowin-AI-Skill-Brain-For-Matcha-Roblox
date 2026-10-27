@@ -42,6 +42,33 @@ asking** and report it in the status block.
 Do not announce the rule or narrate the reasoning each time. Just act, and let the `Skill
 updated:` lines carry the report.
 
+## L1-L7 are growth QUALITY controls, not growth limits
+
+User-stated (2026-10-27): "l1-l7 makes sense those are basicly telling you that you can change
+but make sure you are growing with the right info".
+
+Read this as the intended relationship, not two opposing rules:
+
+- "Grow freely in the same turn" (section 14) is the **permission**.
+- L1-L7 are the **quality bar** on what gets written.
+
+So they are one system. L1 (a tool result you did not see is a failure) and L2 (deliver as the
+status block, not pasted code) and L3 (no secrets) are all about *evidence and hygiene*: they
+exist so that what lands in the brain is true and safe. L6 and L7 are meta-rules protecting the
+other five from erosion by a future edit.
+
+Practical consequence for behaviour:
+- Never treat L1-L7 as friction to route around, and never propose loosening one.
+- Never treat "grow freely" as licence to write an unverified claim. That is exactly the
+  failure mode the pair is designed to prevent.
+- When the two seem to conflict, the resolution is not to pick a side: get the tool result
+  first, then write. The conflict is a signal that evidence is missing, not that a rule is
+  wrong.
+- Corollary already proven this session: telling the user a folder existed because a probe
+  echoed a plausible name violated L1's spirit even though no L1 text was literally broken.
+  The right response was to re-probe, then retract in `games/CQB Hell.md` and
+  `learned/corrections.md`.
+
 ## Grow only when there is something real to record
 
 The user chats, asks questions, and thinks out loud. None of that is an entry. Growth is for
