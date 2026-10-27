@@ -20,13 +20,20 @@ Silent auto merge, no teleports. Read this before touching the script.
 - Remotes live under `ReplicatedStorage.Events` (plus a `ReplicatedStorage.RemoteEvents` Replica set): `PurchaseEvent`, `SetPreferences`, `ServerMessage`, `DropLuckyBlock`, `FragmentRequest`, `FragmentConfirm`, `FragmentBroadcast`, `GearAction`, `GearFX`, `GearDrop`, `UpgradeFX`, `UpgradeRequest`, `LuckyBlockFX`, `PunchRelease`, `PunchHeld`, `GearRecovery`, `StarterPack`, `Tutorial`, `AdminPromptRsvp`, `DestructionCash`, `KillFeed`, `ResetRequest`, `TeleportRequest`, `TeleportFX`, `OfflineEarnings`, `Rebirth`, `EventRsvp`. There are 40 remote objects in total.
 - `FragmentRequest` is the guessed merge entry point (name only, argument shape UNKNOWN). The pushed script tries four shapes in order and keeps the first whose board signature changes.
 
-## Script
+## Gear and cooldown (confirmed 2026-10-27)
 
-- File `Merge Block Arena` in `bobashid/roblox-matcha`, `v1.0`, 10,698 bytes.
-- Silent by construction: no CFrame write, no teleport, no root-part resize, no TweenService. Merge is remote-only.
-- Defaults: `autoMerge` off, `dryRun` **on** (prints instead of firing), min tier 1, delay 200 ms.
-- Untested against a real board: the scan found 0 blocks, so the merge path has never fired.
+- **Live tools carry a real, named cooldown pair: `CooldownDuration` and `CooldownEndsAt`**, alongside `GearId`, `Rarity`, `Stars`, `LaunchFrom`, `LaunchAt`, `Dropped`, `ExpiresAt`. Read directly off `MagicCarpet`, `HyperlaserGun`, `FreezeRay` (Backpack) and `ClassicRocketLauncher` (Character). This is the field to target; nothing else on the client resembles a cooldown.
+- **The 74 `ReplicatedStorage.GearTemplates` Tools do NOT carry those attributes.** They expose only `CatalogId`, `GearId`, `FragOwner`, `IncomeVisuals` and a `Handle`. So a scan of templates finds no cooldown and looks like "no cooldown exists" - it does, but only on the live instance in the Backpack/Character.
+- Equipped tools contain **no `Script` or `LocalScript`** of their own (`SCRIPTS 0` for the tool subtree); the only scripts in the character are `Health` and `Animate`. Firing is driven by `Events.GearAction`, so there is no client-side wait loop to patch.
+- Consequence: `SetAttribute` writes from the client are local-only. If the fire check reads the local attribute, the cooldown is gone; if `GearAction` is validated against a server-side timer, the attributes will read 0 while the server still refuses. **Unproven which.** Confirming test: flip No Cooldown on, fire, watch `CooldownEndsAt` stay 0 AND the shot land; if the shot is refused with `ends=0`, it is server-side and no client script can remove it.
 
-## Open question
+## Scripts
 
-Where do blocks actually live, and what is `FragmentRequest`'s argument shape? Need the game's merge handler or a clean listing of the folder that holds mergeable blocks.
+- `Merge Block Arena` - `v1.0`, 10,698 bytes. Silent merge, remote-only. Defaults: `autoMerge` off, `dryRun` **on**, min tier 1, delay 200 ms. Untested: the scan found 0 blocks.
+- `Merge Block Arena Weapons` - `v1.0`, 7,996 bytes. Writes `CooldownEndsAt = 0` (and `CooldownDuration = 0`) on every Tool in Backpack + Character each frame via `RenderStepped`; UI has No Cooldown toggle, optional duration zeroing, write-interval slider, and a "List gear + cooldowns" report button. Both scripts are silent by construction: no CFrame write, no teleport, no root-part resize.
+- Because one place id maps to one file, `PLACES` pins `Merge Block Arena` and the weapons build loads with `_G.Hub.load('Merge Block Arena Weapons')` (same arrangement as Prison Life).
+
+## Open questions
+
+1. Where do mergeable blocks actually live, and what is `FragmentRequest`'s argument shape? Need the game's merge handler or a clean listing of the folder holding mergeable blocks.
+2. Is the gear cooldown enforced server-side in the `GearAction` handler? Need that function decompiled.
