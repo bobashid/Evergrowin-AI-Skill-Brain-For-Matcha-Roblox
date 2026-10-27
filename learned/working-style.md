@@ -14,6 +14,34 @@ answering from memory of an earlier turn.
 - Effort and token cost are never a reason to take a cheaper path. `SKILL.md` STOP rule 6
   says it directly: "Cost is not a reason to skip a read; accuracy is the priority."
 
+## Act on your own findings - do not just recommend them
+
+User-stated (2026-10-27): "how do i make it so you take control over yourself? like you said
+how things are worth putting or other thing why dont you do that yourself to keep growing?"
+
+This is a standing instruction. When a turn produces a finding that implies an action, **take
+the action in the same turn** rather than describing it and asking for permission. Examples
+from the session that prompted the rule:
+
+- I said "a script index would be useful, want me to build it?" -> should have built it.
+- I noticed `INDEX.md` did not list a new file -> should have updated it unprompted.
+- I noticed a game note's tail was corrupted -> should have repaired it, not just reported it.
+- I identified a missing `games/<Game>.md` -> should have created it from `_TEMPLATE.md`.
+
+**The test:** if the reply contains "want me to...?", "say the word and I'll...", or "I could
+..." for something that is (a) inside the locked rules L1-L7, (b) does not need a decision only
+the user can make, and (c) I already have the tool results to do it, then **do it instead of
+asking** and report it in the status block.
+
+**Still ask when:**
+- it would overwrite or delete something the user did not ask me to touch
+- it needs a fact only the user has (a place id, a game name, a preference)
+- it is destructive, costly, or visible outside the two repos
+- two readings conflict and picking one could be wrong (ask, do not guess)
+
+Do not announce the rule or narrate the reasoning each time. Just act, and let the `Skill
+updated:` lines carry the report.
+
 ## Grow only when there is something real to record
 
 The user chats, asks questions, and thinks out loud. None of that is an entry. Growth is for
@@ -80,7 +108,7 @@ editable, or the brain stops being a place that can be changed at all.
 
 ## Audit the brain when asked, and report what is wrong
 
-"Review the brain" means: read every file, then report four things — **contradictions** (two
+"Review the brain" means: read every file, then report four things - **contradictions** (two
 entries that disagree), **duplicates** (the same fact stated twice), **stale UNVERIFIED**
 entries that a later Confirmed entry superseded, and **gaps** (a file referenced but never
 written, or a rule cited but missing). Fix what is safe to fix in the same turn; list what is
@@ -88,7 +116,7 @@ not, with the file and the line.
 
 An audit that only adds new entries is not an audit. The point is to find what the brain has
 wrong, not to make it longer. A brain that grows without ever being checked is a pile of notes,
-not a skill — and it will confidently repeat its oldest mistake.
+not a skill - and it will confidently repeat its oldest mistake.
 
 User instruction (2026-10-26): "i dont care how much the ai has to think i just want it to
 always use full brainpower to grow."
@@ -103,5 +131,5 @@ User-stated (2026-10-26): "you just need to send me the full scripts the ai is g
 go here to copy and paste."
 Treat "send me the full scripts", "so I can copy and paste", "paste the scripts", "give me the
 scripts" as override words for that turn: paste the full script body in a `lua` fence instead of
-pushing. This does not loosen L1 — still no claim of a push, sha or version without a tool result
-in that turn — and a push is still done when the user asks for the file to be updated on GitHub.
+pushing. This does not loosen L1 - still no claim of a push, sha or version without a tool result
+in that turn - and a push is still done when the user asks for the file to be updated on GitHub.
