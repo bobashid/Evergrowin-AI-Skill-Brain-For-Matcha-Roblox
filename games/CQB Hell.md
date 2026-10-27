@@ -1,12 +1,37 @@
 # CQB Hell
 
 Place id: `98689921952741` (from `matcha_status`, 2026-10-27).
-Script: `roblox-matcha/CQB Hell`, current version `v1.5`.
+Script: `roblox-matcha/CQB Hell`, current version `v2.0`.
 
 ## Features
-Weapon / NPC / Heal / Ammo ESP, one tab, four toggles, range + transparency sliders.
+Weapon mods (Inf Ammo, Faster Reload, Rapid Fire) + Weapon / NPC / Heal / Ammo ESP.
 
-## Where the NPCs actually are (the important one)
+## Weapon settings are NumberValues, not GC tables
+
+Probe 2026-10-27 found real writable instances:
+
+```
+<gun>.Settings.<Weapon>.Firerate      NumberValue  values seen: 0.1, 0.15, 0.2, 0.4, 1
+<gun>.Settings.<Weapon>.ReloadDelay   NumberValue  value seen: 0.2
+```
+
+Paths hit: `Workspace.EnemyShotgun_Corpse.Settings.M4.Firerate`,
+`Workspace.Tec9_Corpse.Settings.M4.Firerate`, `Workspace.PKM_Corpse.Settings.M4.Firerate`
+(same for `ReloadDelay`). **This is a different engine family from Realistic Home Defense**,
+where ACS wraps every settings table in `LockSettings`/`table.freeze` so GC writes are inert.
+Here the values are plain `NumberValue` instances and can be written directly - no `getgc`,
+no `applygc`, no unfreeze step.
+
+**Important:** the probe hit only `*_Corpse` models, i.e. dead NPCs' guns. Writing those
+does nothing for the player. The script therefore walks the **local character**
+(`workspace[LocalPlayer.Name]`) for `Firerate` / `ReloadDelay` NumberValues, never the
+workspace-wide list.
+
+Ammo field name is UNVERIFIED - no gun was equipped during probing (`CHARTOOLS n=0`).
+v2.0 writes any NumberValue under the local character whose name contains `ammo` and not
+`max`, and additionally refills the `Local_CurrentAmmo` / `Ammo` attributes on the Tool.
+
+## Where the NPCs actually are
 
 NPCs live under a folder named `People`, but **that folder moves**. It is NOT reliably a
 direct `workspace` child. Two probes minutes apart:
@@ -24,7 +49,7 @@ HUMANS n=29 ::
 
 So: **find NPCs by walking ANCESTORS for an instance named `People`, never by a fixed
 path.** `workspace:FindFirstChild('People')` returned `false` while three NPCs were alive
-under `Surroundings.People`. v1.4 used the fixed path and drew nothing; v1.5 uses ancestry.
+under `Surroundings.People`. v1.4 used the fixed path and drew nothing; v1.5+ uses ancestry.
 
 Each NPC is also wrapped one level deep - `People.<Name>GP.<Name>` - and the wrapper has
 no Humanoid. Draw the inner model, and drop a candidate whose parent is already a candidate
@@ -36,7 +61,7 @@ NPC and statue Humanoids report `5000000000 / 5000000000` (5 billion). That is t
 "invincible / don't show HP" marker.
 - a bar computed from it is always full and always green
 - a label reading `5000000000/5000000000` is unreadable and covers the screen
-- v1.5 hides HP text and skips the bar when `MaxHealth >= 1e6`, tinting those NPCs purple
+- v1.5+ hides HP text and skips the bar when `MaxHealth >= 1e6`, tinting those NPCs purple
 - **Statues** (`Surroundings.Lobby.Model.Statue`) have a Humanoid at 5e9 too and must be
   excluded by ancestor (`Lobby`, `Statue`) or the ESP boxes scenery
 
@@ -57,6 +82,8 @@ So `isPlayer = hasChild('NameTag') or hasChild('FPV_DynamicCam')`. Name is never
 - Character models are DIRECT `workspace` children named after the player, ~20 per server
   (`JuanPiripicho`, `O_CsF`, `FakeAimbotON`, `TwixieKitty7575`, ...), each `100/100`.
 - So the NPC collector must never assume "root model with a Humanoid = NPC".
+- `LocalPlayer.Character` is intermittent here, so resolve the character by
+  `workspace[LocalPlayer.Name]` (probe: `CHAR true name=FakeAimbotON`).
 
 ## Other structure
 - Corpses are `<Name>_Corpse` with `Humanoid.Health == 0`; 30 can be on the floor at once.
@@ -76,9 +103,10 @@ So `isPlayer = hasChild('NameTag') or hasChild('FPV_DynamicCam')`. Name is never
 - `ReplicatedStorage.Characters` holds 20 NPC templates (`nobody`, `operator_alpha`, ...).
 
 ## UNVERIFIED
+- The ammo NumberValue name inside a live gun (no gun equipped while probing).
+- Whether the server honours client-side `Firerate` / `ReloadDelay` writes, or recomputes
+  them on its own tick and overwrites the client copy.
 - A dropped heal or dropped weapon keeping its name at `workspace` root (only templates seen).
-- Whether `People` can also appear as a grandchild deeper than `Surroundings` (the ancestry
-  walk already covers 10 levels, so this should be moot, but it is untested in every map).
 
 ## Notes
 - A nil `_G[NAME]` does not mean the script failed to load. Check `matcha_logs` for the
