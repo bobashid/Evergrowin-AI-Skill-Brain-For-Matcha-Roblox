@@ -3,41 +3,40 @@
 Place id **119048529960596**. `game.Name` reports **`Ugc`**, so Hub must pin this place in
 `PLACES` (done, Hub v3.0). Script: `Restaurant Tycoon 3` in `bobashid/roblox-matcha`.
 
-## Two bugs I caused, and their fixes
+## `TaskCompleted` is the universal task remote (Confirmed 2026-10-27)
 
-1. **Serving the wrong dish.** `foodList()` skips dishes with `Taken` set. Grabbing sets `Taken`,
-   so the just-grabbed dish disappeared from the list and v3.4.0 served some *other* dish still
-   on the counter - so nothing ever left the player's hands. Fixed in v3.5.0 by remembering the
-   grabbed model in `held` and serving that exact model.
-2. **Firing `Dialog` prompts / `SeatPrompt`.** Both were wrong interpretations (see corrections).
+Three different actions all go through the SAME remote, discriminated only by `Name`, which is a
+plain literal string (not an enum value):
 
-## Corrections from the user (User-stated 2026-10-27)
+| Action | `Name` | Extra fields |
+|---|---|---|
+| Seat a guest at a table | `"SendToTable"` | `FurnitureModel` = the `Items.Surface` table, `GroupId` |
+| Collect a table bill | `"CollectBill"` | `FurnitureModel` = the `Items.Surface` table |
+| Serve a dish | `"Serve"` (getgc-confirmed) | `GroupId`, `CustomerId`, `FoodModel` |
 
-- **"Auto seat" does NOT mean firing `SeatPrompt`.** It means accepting a guest's arrival
-  prompt. The SeatPrompt toggle was removed in v3.3.0.
-- **Firing `Dialog` prompts opened WaveyDavey's dialogue.** There are 0 `Dialog` prompts in the
-  plot. Dialog firing is banned.
-- **`💸 Cash` rises on its own** (passive income), so a rising balance is not evidence.
-- **"Grabbing worked, serving did not"** drove v3.4.0 and then v3.5.0.
+**`GroupId` is a STRING**, not a number - the seat capture shows `GroupId = "19"`. It is the
+`ClientCustomers` **folder name**. `CustomerId` is the customer **model name**, also a string.
 
-## `TaskCompleted` names are literal strings (Confirmed 2026-10-27)
+`require(...Enums.Restaurant.Task)` decompiles to `return {}`, so the source never shows these
+values; they are runtime strings. `getgc("Serve")` returned 27 string entries including
+`"Serve"`, `"Name"`, `"Key"`, `"IsHoldingFoodForNPC"`; `getgc("CollectBill")` returned 4
+including `"CollectBill"`.
 
-- **User-captured:** `TaskCompleted:FireServer({Tycoon=tycoon, Name="CollectBill", FurnitureModel=Surface.T19})`.
-- **Memory-confirmed:** `getgc("Serve")` returned **27** string entries including `"Serve"`,
-  `"Name"`, `"Key"`, `"IsHoldingFoodForNPC"`, `"BuyFurniture"`. `getgc("CollectBill")`
-  returned 4 entries including `"CollectBill"` and `"Key"`.
-- **So `Name = 'Serve'` is correct.** The earlier `getgc` probe returning `n=0` was a failed
-  call, not evidence of absence - a stale echo. Do not trust a single zero result from `getgc`.
-- `require(...Enums.Restaurant.Task)` decompiles to `return {}`; the values are runtime strings,
-  which is why the source read never showed them.
+## Captured remote payloads (User-stated 2026-10-27, verbatim from Remote Spy)
 
-## Captured remote payloads (User-stated 2026-10-27, verbatim)
+**Seat a guest** (in game: click the guest's prompt, THEN click an empty table):
 
-Tips - one argument, the tycoon folder:
+    Events.Restaurant.TaskCompleted:FireServer({
+        FurnitureModel = game.Workspace.Tycoons.Tycoon.Items.Surface.T1,
+        GroupId = "19",
+        Tycoon = game.Workspace.Tycoons.Tycoon,
+        Name = "SendToTable" })
+
+**Tips** - one argument, the tycoon folder:
 
     Events.Restaurant.TipsCollected:FireServer(game.Workspace.Tycoons.Tycoon)
 
-Bill - two calls fired together:
+**Bill** - two calls fired together:
 
     Events.Restaurant.Interactions.Interacted:FireServer(tycoon, {
         Id = "142", Key = "CollectBill", Model = tycoon.Items.Surface.T19,
@@ -58,22 +57,35 @@ The bill target is the **`Surface` model**, not its `Bill` child.
     Folder "16" -> Model "1", Model "2"
     Folder "17" -> Model "1", Model "2"
 
-**Folder name = `GroupId`, model name = `CustomerId`** - the integer pair that
-`Customers:GetCustomerData(tycoon, groupId, customerId)` expects. The models are client-side
-dummies: **no Humanoid, no ProximityPrompt, no ClickDetector**, so `fireproximityprompt` can
-never serve. Guest data lives in the module's `TyonoStorage`/`TycoonStorage` table, not the
-DataModel - there is no `Customers` folder under the tycoon.
+Folder name = `GroupId`, model name = `CustomerId`. The models are client-side dummies:
+**no Humanoid, no ProximityPrompt, no ClickDetector**, so `fireproximityprompt` can never serve
+or seat. Guest data lives in the module's `TycoonStorage` table, not the DataModel.
 
-`Objects.Food` children carry attributes: `EatMethod` and `Taken`.
+`Objects.Food` children carry attributes `EatMethod` and `Taken`.
 
-## Serving (Confirmed 2026-10-27 by decompile + probe)
+## Bugs I caused, and their fixes
 
-`TaskCompleted:FireServer(task)` where task = `Name='Serve'`, `Tycoon`, `FoodModel`, plus one
-discriminator: `Player` | (`GroupId` + `CustomerId`) | `CarId`. 0.25 s client debounce.
-NPC branch precondition: customer `State == WaitingForDish` and
-`GrabFood:IsHoldingFoodForNPC(order, isKid)`, which compares `order` against the **held dish's
-model Name** (`FoodKey`). The order is not exposed in the DataModel, so v3.5.0 cycles guests
-round-robin; only the guest whose order matches the held dish can accept it.
+1. **Serving the wrong dish.** `foodList()` skips dishes with `Taken` set. Grabbing sets `Taken`,
+   so the just-grabbed dish vanished from the list and v3.4.0 served some *other* dish still on
+   the counter - food never left the player's hands. Fixed in v3.5.0 by remembering the grabbed
+   model in `held` and serving that exact model.
+2. **"Auto seat" misread as firing `SeatPrompt`.** The user meant seating a guest who walks in.
+   SeatPrompt firing removed in v3.3.0; the real fix is the captured `SendToTable` payload.
+3. **Firing `Dialog` prompts** opened world NPC dialogue (WaveyDavey). 0 `Dialog` prompts exist
+   inside the plot. Dialog firing is banned.
+
+## Corrections from the user (User-stated 2026-10-27)
+
+- `💸 Cash` rises on its own (passive income), so a rising balance is not evidence of anything.
+- Grabbing worked while serving did not: "it picks up the food from the counter but doesnt give
+  it to the guest that is requesting that specific food".
+
+## Serving preconditions (Confirmed 2026-10-27 by decompile)
+
+NPC branch requires customer `State == CustomerState.WaitingForDish` and
+`GrabFood:IsHoldingFoodForNPC(order, isKid)`, which compares the order against the **held dish's
+model Name**. The order is not exposed in the DataModel, so v3.6.x cycles guests round-robin;
+only the guest whose order matches the held dish can accept it. 0.25 s client debounce.
 
 ## Other confirmed facts (2026-10-27)
 
@@ -91,13 +103,15 @@ round-robin; only the guest whose order matches the held dish can accept it.
 - v1.0.0: keyword prompt scan. No-op.
 - v2.0.0 / v2.0.1: grab + Dialog serve; fired world NPC dialogue.
 - v3.0.0 / v3.1.0: plot-scoped; grab + SeatPrompt.
-- v3.2.0: + tips + bills (user-captured payloads).
+- v3.2.0: + tips + bills (captured payloads).
 - v3.3.0: SeatPrompt removed.
-- v3.4.0: serve added via ClientCustomers - **served the wrong dish**.
-- v3.5.0: held-model tracking; serves the dish actually in hand, guest round-robin.
+- v3.4.0: serve added - served the wrong dish.
+- v3.5.0: held-model tracking, guest round-robin.
+- v3.6.0: **seat added** via captured `SendToTable`; GroupId sent as a string.
+- v3.6.1: fixed a malformed local in the Seat Once Now button.
 
 ## Still unknown
 
-1. The guest-accept payload (`Interactions.Interacted`, `IsCustomerPrompt = true`).
-2. The order-taking payload.
-3. Whether `Interactions.Interacted` is also required for bills (v3.5.0 sends `TaskCompleted` only).
+1. The order-taking payload (so the held dish can be matched to the right guest).
+2. Whether `Interactions.Interacted` is also required for bills (v3.6.x sends `TaskCompleted`
+   only; bills have not been reported working or failing either way).
