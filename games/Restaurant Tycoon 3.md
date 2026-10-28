@@ -10,78 +10,124 @@ Script: `Restaurant Tycoon 3` in `bobashid/roblox-matcha`.
 - **Ownership is an ObjectValue, not an attribute.** `workspace.Tycoons` holds 8 children all
   named `Folder "Tycoon"`; `GetAttribute('Owner')` returns **nil** on every one. Each has a
   child `ObjectValue` named `Player`, so the owner test is `plot.Player.Value == LocalPlayer`.
-  Proof: 8 plots probed, all `owner=nil`, then `MINE game.Workspace.Tycoons.Tycoon` resolved
-  via the ObjectValue.
-- **Currency:** `LocalPlayer.leaderstats` -> `IntValue` named `💸 Cash` (emoji + space in the
-  name). Read 124, then 285 a few minutes later with no collecting done by hand. Do not match
-  on the plain string `Cash`.
-- **Cash rises on its own.** 124 -> 285 between two probes while the player stood still, so the
-  tycoon has passive income. Any "auto collect money" script has to be judged against that:
-  a flat balance is not proof the script did nothing, and a rising balance is not proof it
-  worked. Measure the *piles* disappearing, not the balance.
-- **Tycoon layout:** `<Tycoon>` -> `Locations` (6 CFrameValues: Base, FrontBase, DefaultEntrance,
-  DefaultWalkPoint, StartOfRoad, RatingsBoard), `Player` (ObjectValue), `Objects` (Folder:
-  `Food`, `Advertising`, `CookingResources`), `GreyBox` (Part), `Default` (Model), `Items`.
+- **Currency:** `LocalPlayer.leaderstats` -> `IntValue` named `💸 Cash` (emoji + space).
+  Read 124, then 285 minutes later with no manual collecting: the tycoon has passive income.
+  A rising balance is therefore NOT proof a script worked. Measure drops disappearing.
+- **Tycoon layout:** `<Tycoon>` -> `Locations` (6 CFrameValues), `Player` (ObjectValue),
+  `Objects` (Folder: `Food`, `Advertising`, `CookingResources`), `GreyBox`, `Default`, `Items`.
   `Items` has 7 children: BeingPlaced, Furniture (19), Surface (10), Walls (42), Floor (9),
   Config (2), Stairs (0).
-- **Cash piles are not client-interactable.**
-  `Tycoons.Tycoon.Items.Furniture.K32.Cash` holds 16 child Models (`Cash1`..`Cash16`), each with
-  2 `MeshPart`s. Counted inside that subtree: **0 `TouchTransmitter`, 0 `ProximityPrompt`,
-  0 `ClickDetector`, 0 `Attachment`**. So `firetouchinterest` / `fireproximityprompt` /
-  `fireclickdetector` have nothing to fire at.
+- **Cash piles under `Items.Furniture.K32.Cash` are DECORATION, not collectibles.** 16 child
+  Models (`Cash1`..`Cash16`), 2 `MeshPart`s each, and inside that subtree: **0
+  `TouchTransmitter`, 0 `ProximityPrompt`, 0 `ClickDetector`, 0 `Attachment`**. Real money is
+  the drop system below. This is the trap that made v1.0.0 a no-op.
 - **No dish or money words in prompt names.** All 350 `ProximityPrompt`/`ClickDetector` in
-  `workspace` were listed. Real names: `RestaurantBoardPrompt`, `SeatPrompt`, `DoorPrompt`,
-  `BuyPrompt` (cosmetics), `IngredientShopPrompt`, `GrowAllPrompt`, `Dialog`, `ChefLuigi`,
-  `CreditsPrompt`, `EventHistoryMachinePrompt`, plain `ProximityPrompt`. A keyword scan for
-  dish/money/trash terms matched **0** of them.
-- **Almost no dish objects in the world.** Whole-workspace name scan: `plate` -> 7 hits, all
-  `TestNewPlate` union operations under `Model 3`; `dirty` -> **0** hits. Plates/trays/food on
-  tables exist only as `Attachment`s (`PlateHeight`, `Tray1`, `Tray2`, `Food1`..`Food6`) under
-  `Base` parts, not as interactable instances.
+  `workspace` listed: `RestaurantBoardPrompt`, `SeatPrompt`, `DoorPrompt`, `BuyPrompt`
+  (cosmetics), `IngredientShopPrompt`, `GrowAllPrompt`, `Dialog`, `ChefLuigi`, `CreditsPrompt`,
+  `EventHistoryMachinePrompt`, plain `ProximityPrompt`. Dish/money keyword scan matched **0**.
+- **Almost no dish objects in the world.** `plate` -> 7 hits, all `TestNewPlate` unions;
+  `dirty` -> **0**. Plates/trays on tables are `Attachment`s only.
 
 ## Remotes (Confirmed 2026-10-27, name scan of ReplicatedStorage)
-
-26 RemoteEvent/RemoteFunction names matched collect/cash/tip/food/clean style terms. The ones
-that matter, with their parents:
 
 | Remote | Class | Parent |
 |---|---|---|
 | `GrabFood` | RemoteFunction | `Restaurant` |
+| `GrabEnded` | RemoteEvent | `Restaurant` |
+| `CancelGrabRequested` | RemoteEvent | `Restaurant` |
+| `TaskCompleted` | RemoteEvent | `Restaurant` |
 | `TipsCollected` | RemoteEvent | `Restaurant` |
 | `PlayerCollectedDrops` | UnreliableRemoteEvent | `Currency` |
+| `DropSpawned` / `DropsDespawned` | RemoteEvent | `Currency` |
 | `CollectOfflineEarningsRequested` | RemoteEvent | `Upgrades` |
-| `FoodConsumed` | RemoteEvent | `Food` |
-| `FoodInspected` | RemoteEvent | `Food` |
-| `FoodInventoryUpdated` | RemoteEvent | `Food` |
-| `FoodOrdered` | RemoteEvent | `Food` |
+| `FoodConsumed` / `FoodOrdered` / `FoodInspected` | RemoteEvent | `Food` |
 | `ItemCollected` | RemoteEvent | `ScavengerHunt` |
 
-`GrabFood`, `TipsCollected` and `PlayerCollectedDrops` are the three candidates for the money
-path. None has been fired yet - **argument shapes are unknown**, so firing them blind would be
-the same guess the script already wasted a version on.
+## Money drops - full mechanism (Confirmed 2026-10-27 by decompile)
 
-## Where the client logic lives (Confirmed 2026-10-27)
+Module `PlayerScripts.Source.Systems.Currency.CurrencyDrops`.
 
-The game ships an organised client tree under
-`Players.<LocalPlayer>.PlayerScripts.Source` - `Systems.InterfaceController`,
-`Modules.Player`, `Interfaces`, etc. (module search for `Tycoon` returned
-`Source.Systems.FocusedTycoon`, `Source.Interfaces.TycoonStartMenu`,
-`Source.Systems.InterfaceController.TycoonStartMenuController`). The cash/dish handler is
-reachable by decompiling the module that fires `GrabFood` / `TipsCollected`, **not** by
-scanning workspace names. That is the next probe.
+- Drops are cloned from `ReplicatedStorage.Assets.Models.Currency.DropTemplate` into a folder
+  **`workspace.DropFolder`**, not under the tycoon.
+- Ids come from the **server**: `Events.Currency.DropSpawned.OnClientEvent(_, dropId, data)`.
+- **Collection is proximity-based and automatic.** A `Heartbeat` loop tests
+  `MagnitudeSquared(drop.Position, HumanoidRootPart.Position) <= (7 + SizeModifier)^2`, anchors
+  the drop, Lerps it to the player over ~1 s, then collects it. No click, no prompt, no key.
+- **The remote call:** ids are batched and one deferred call does
+  `Events.Currency.PlayerCollectedDrops:FireServer({id1, id2, ...})` - a single array argument.
+- Drops self-despawn after 120 s.
 
-## Consequence for the script
+**Consequence:** standing near drops is enough - the game's own radius test fires the remote.
+A direct fire needs ids that only arrive via `DropSpawned`, so a drop-collect script is only
+worth writing for drops outside the walk radius.
 
-v1.0.0 of `Restaurant Tycoon 3` discovers prompts by name keyword and fires them. On this game
-that finds **nothing**, so it is a no-op. It is not a bug in the code path - the game does not
-expose these actions as prompts at all.
+## Grabbing food - full mechanism (Confirmed 2026-10-27 by decompile)
 
-## What is needed next
+Module `Source.Systems.Restaurant.GrabFood`.
 
-1. Decompile the module that fires `GrabFood` / `TipsCollected` and read the argument shape.
-2. Or: do it once by hand in game and say what you did (walked over the pile? clicked it? it
-   vanished on its own after a timer?). That single sentence decides whether this is a touch,
-   a remote call, or fully automatic and needs no script at all.
+- **`local ok, info = Events.Restaurant.GrabFood:InvokeServer(foodModel)`** - the food Model is
+  the only argument. `info` = `{ TargetPlayerName, TargetCarId, KidFlag }`.
+- Client preconditions, all replicable: `Managers:HasPermission(tycoon)`;
+  `Cook:PlayerIsCooking()` false; `food:GetAttribute('Taken')` falsy; every item already held
+  must belong to the same tycoon.
+- **Hold capacity** = `Upgrades:Has(WaiterCart) and 4 or Upgrades:Has(WaiterTray) and 3 or 1`.
+- Candidate food = children of `tycoon.Objects.Food` with no `Taken` attribute, within
+  **manhattan distance `|dx| + |dz| < 4`** of the interaction point.
+- `GrabEnded.OnClientEvent(plate)` removes the plate from storage; `CancelGrabRequested:FireServer()` cancels.
 
-Do not ship a third keyword-guessing version. Two discovery attempts on this game have already
-returned zero (prompt keywords, world name keywords).
+## Serving food - full mechanism (Confirmed 2026-10-27 by decompile)
+
+Module `Source.Modules.Tasks.ServeFood`. This is the step that converts held food into cash.
+All three variants end in the **same remote**:
+
+    Events.Restaurant.TaskCompleted:FireServer(task)
+
+where `task` always contains `Name = <Task enum>.Serve`, `Tycoon = tycoon`, `FoodModel = model`,
+plus exactly one target discriminator:
+
+| Variant | Extra fields | Precondition the game checks |
+|---|---|---|
+| Player | `Player = <Player object>` | `GrabFood:IsHoldingFoodForPlayer(player.Name)` |
+| NPC | `GroupId = <id>`, `CustomerId = <id>` | `Customers:GetCustomerData(tycoon, groupId, customerId).State == CustomerState.WaitingForDish` **and** `IsHoldingFoodForNPC(order, isKid)` |
+| Car (drive-thru) | `CarId = <carModel.Name>` | `DriveThru:GetCarData(tycoon, name)` and some order in `carData.Orders` matching `IsHoldingFoodForCar(order)` |
+
+- Client dispatch is in `Tasks.TaskInputReceived`: branch on `task.CurrentTask.Name == Task.Serve`,
+  then `CarModel` -> `CompleteForCar`, `Player` -> `CompleteForPlayer`, else `GroupId` + `CustomerId`
+  -> `CompleteForNPC`.
+- **There is a 0.25 s debounce** (`v_u_12`, set true then cleared by `task.delay(0.25)`). Replicate
+  it or serve calls spam.
+
+**The key design fact:** `GrabFood:InvokeServer` *returns* `{TargetPlayerName, TargetCarId, KidFlag}`,
+so the grab result already says which serve variant to build. The loop is self-describing and
+needs no guessing about who the food belongs to.
+
+## The one missing constant (Confirmed 2026-10-27)
+
+`require(ReplicatedStorage.Source.Enums.Restaurant.Task)` decompiles to exactly:
+
+    return {}
+
+So `Task.Serve` cannot be read statically - the enum is populated at runtime, or the decompiler
+dropped it. A script therefore cannot write `Name = Task.Serve` from source knowledge alone.
+
+Two zero-guess ways to obtain the real value:
+
+1. **Remote Spy** (Matcha Pro built-in): serve one customer by hand and read the actual
+   `TaskCompleted` call - it prints `Name` exactly.
+2. **Let the game build the task itself:** serving is driven from an interaction on the customer
+   (`Interactions.Interacted(tycoon, {Key = "Serve", Model = customerModel})`), and the prompt
+   list already shows a `Dialog` prompt on customer HumanoidRootParts. Firing that prompt with
+   `fireproximityprompt` makes the game construct the correct task, enum included.
+
+Do not invent a value for `Task.Serve`. A wrong `Name` means `TaskCompleted` silently no-ops.
+
+## Still unknown
+
+1. The real value of `Task.Serve` (see above - capture it, do not guess).
+2. Where `TipsCollected` is fired and its argument shape.
+3. Whether `DropSpawned` ids can be hooked to fire `PlayerCollectedDrops` without walking.
+
+## Consequence for script v1.0.0
+
+v1.0.0 discovers prompts by name keyword and fires them. On this game that finds **nothing**,
+so it is a no-op. Retire it; do not ship a keyword-guessing version.
