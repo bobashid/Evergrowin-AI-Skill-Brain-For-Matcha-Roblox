@@ -37,8 +37,8 @@ Script: `Restaurant Tycoon 3` in `bobashid/roblox-matcha`.
 | `CancelGrabRequested` | RemoteEvent | `Restaurant` |
 | `TaskCompleted` | RemoteEvent | `Restaurant` |
 | `TipsCollected` | RemoteEvent | `Restaurant` |
-| `PlayerCollectedDrops` | UnreliableRemoteEvent | `Currency` |
-| `DropSpawned` / `DropsDespawned` | RemoteEvent | `Currency` |
+| `PlayerCollectedDrops` | **UnreliableRemoteEvent** | `Currency` |
+| `DropSpawned` / `DropsDespawned` | **UnreliableRemoteEvent** | `Currency` |
 | `CollectOfflineEarningsRequested` | RemoteEvent | `Upgrades` |
 | `FoodConsumed` / `FoodOrdered` / `FoodInspected` | RemoteEvent | `Food` |
 | `ItemCollected` | RemoteEvent | `ScavengerHunt` |
@@ -57,16 +57,15 @@ Module `PlayerScripts.Source.Systems.Currency.CurrencyDrops`.
   `Events.Currency.PlayerCollectedDrops:FireServer({id1, id2, ...})` - a single array argument.
 - Drops self-despawn after 120 s.
 
-**Consequence:** standing near drops is enough - the game's own radius test fires the remote.
-A direct fire needs ids that only arrive via `DropSpawned`, so a drop-collect script is only
-worth writing for drops outside the walk radius.
+**Consequence: drop collection needs no script at all.** The game's own radius test collects for
+you. See the hook limit below - there is no client-side route to a direct fire.
 
 ## Grabbing food - full mechanism (Confirmed 2026-10-27 by decompile)
 
 Module `Source.Systems.Restaurant.GrabFood`.
 
 - **`local ok, info = Events.Restaurant.GrabFood:InvokeServer(foodModel)`** - the food Model is
-  the only argument. `info` = `{ TargetPlayerName, TargetCarId, KidFlag }`.
+  the only argument.
 - Client preconditions, all replicable: `Managers:HasPermission(tycoon)`;
   `Cook:PlayerIsCooking()` false; `food:GetAttribute('Taken')` falsy; every item already held
   must belong to the same tycoon.
@@ -97,9 +96,24 @@ plus exactly one target discriminator:
 - **There is a 0.25 s debounce** (`v_u_12`, set true then cleared by `task.delay(0.25)`). Replicate
   it or serve calls spam.
 
-**The key design fact:** `GrabFood:InvokeServer` *returns* `{TargetPlayerName, TargetCarId, KidFlag}`,
-so the grab result already says which serve variant to build. The loop is self-describing and
-needs no guessing about who the food belongs to.
+## Probe results (Confirmed 2026-10-27, matcha_exec)
+
+- **`GrabFood:InvokeServer(foodModel)` works from a script.** Called on
+  `Workspace.Tycoons.Tycoon.Objects.Food.3` and returned **`true`**.
+- **It returned only `true` - no `{TargetPlayerName, TargetCarId, KidFlag}` table.** So the
+  earlier claim that the grab result tells you which serve variant to build is **not reliable**:
+  the info table can be nil (no customer waiting for that dish at that moment). Any serve loop
+  must handle `info == nil` and determine the target independently, from `Customers` / `DriveThru`
+  / `Players` state rather than from the grab return.
+- `tycoon.Objects.Food` had **5** children; the first child with no `Taken` attribute was
+  `Objects.Food.3`.
+- **`getconnections` and `hookfunction` are nil in this VM; `getgc` is a function.** Therefore
+  `DropSpawned` cannot be hooked and drop ids cannot be intercepted client-side. Combined with
+  the automatic proximity collection, a direct `PlayerCollectedDrops` fire is **not reachable**
+  from a script, and is not needed.
+- `workspace.DropFolder` existed but held **0** children at probe time.
+- `Events.Currency` children confirmed as `DropSpawned`, `DropsDespawned`,
+  `PlayerCollectedDrops`, all **`UnreliableRemoteEvent`**.
 
 ## The one missing constant (Confirmed 2026-10-27)
 
@@ -123,9 +137,8 @@ Do not invent a value for `Task.Serve`. A wrong `Name` means `TaskCompleted` sil
 
 ## Still unknown
 
-1. The real value of `Task.Serve` (see above - capture it, do not guess).
+1. The real value of `Task.Serve` (capture it, do not guess).
 2. Where `TipsCollected` is fired and its argument shape.
-3. Whether `DropSpawned` ids can be hooked to fire `PlayerCollectedDrops` without walking.
 
 ## Consequence for script v1.0.0
 
