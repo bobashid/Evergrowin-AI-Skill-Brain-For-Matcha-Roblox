@@ -21,12 +21,25 @@ Script: `Restaurant Tycoon 3` in `bobashid/roblox-matcha`.
   Models (`Cash1`..`Cash16`), 2 `MeshPart`s each, and inside that subtree: **0
   `TouchTransmitter`, 0 `ProximityPrompt`, 0 `ClickDetector`, 0 `Attachment`**. Real money is
   the drop system below. This is the trap that made v1.0.0 a no-op.
-- **No dish or money words in prompt names.** All 350 `ProximityPrompt`/`ClickDetector` in
-  `workspace` listed: `RestaurantBoardPrompt`, `SeatPrompt`, `DoorPrompt`, `BuyPrompt`
-  (cosmetics), `IngredientShopPrompt`, `GrowAllPrompt`, `Dialog`, `ChefLuigi`, `CreditsPrompt`,
-  `EventHistoryMachinePrompt`, plain `ProximityPrompt`. Dish/money keyword scan matched **0**.
 - **Almost no dish objects in the world.** `plate` -> 7 hits, all `TestNewPlate` unions;
-  `dirty` -> **0**. Plates/trays on tables are `Attachment`s only.
+  `dirty` -> **0**. Plates/trays on tables are `Attachment`s only. Food models in
+  `Objects.Food` are named numerically (seen: `225`), and `Taken` reads **nil** on fresh ones.
+
+## Prompt inventory (Confirmed 2026-10-27, whole-workspace scan)
+
+Only **6** prompts exist for the actions that matter, out of ~350 total:
+
+| Prompt | Count | Parent | Has NPC Humanoid |
+|---|---|---|---|
+| `IngredientShopPrompt` | 1 | `HumanoidRootPart` | no |
+| `GrowAllPrompt` | 1 | `Sign` | no |
+| `Dialog` | 4 | `HumanoidRootPart` | **only 1 of the 4** |
+
+Consequence: firing every `Dialog` prompt also pokes three non-NPC ones, which belong to other
+UI/NPC flows. A serve loop must filter `Dialog` by "parent's parent has a `Humanoid`" (or by
+customer state) before firing, not fire all four.
+
+`workspace.EatingFoods` existed but held **0** children at probe time.
 
 ## Remotes (Confirmed 2026-10-27, name scan of ReplicatedStorage)
 
@@ -58,7 +71,8 @@ Module `PlayerScripts.Source.Systems.Currency.CurrencyDrops`.
 - Drops self-despawn after 120 s.
 
 **Consequence: drop collection needs no script at all.** The game's own radius test collects for
-you. See the hook limit below - there is no client-side route to a direct fire.
+you. `getconnections` and `hookfunction` are nil in this VM, so ids cannot be intercepted and a
+direct fire is not reachable either.
 
 ## Grabbing food - full mechanism (Confirmed 2026-10-27 by decompile)
 
@@ -76,8 +90,7 @@ Module `Source.Systems.Restaurant.GrabFood`.
 
 ## Serving food - full mechanism (Confirmed 2026-10-27 by decompile)
 
-Module `Source.Modules.Tasks.ServeFood`. This is the step that converts held food into cash.
-All three variants end in the **same remote**:
+Module `Source.Modules.Tasks.ServeFood`. All three variants end in the same remote:
 
     Events.Restaurant.TaskCompleted:FireServer(task)
 
@@ -101,16 +114,13 @@ plus exactly one target discriminator:
 - **`GrabFood:InvokeServer(foodModel)` works from a script.** Called on
   `Workspace.Tycoons.Tycoon.Objects.Food.3` and returned **`true`**.
 - **It returned only `true` - no `{TargetPlayerName, TargetCarId, KidFlag}` table.** So the
-  earlier claim that the grab result tells you which serve variant to build is **not reliable**:
-  the info table can be nil (no customer waiting for that dish at that moment). Any serve loop
-  must handle `info == nil` and determine the target independently, from `Customers` / `DriveThru`
-  / `Players` state rather than from the grab return.
-- `tycoon.Objects.Food` had **5** children; the first child with no `Taken` attribute was
-  `Objects.Food.3`.
+  claim that the grab result tells you which serve variant to build is **not reliable**:
+  the info table can be nil. A serve loop must determine its target independently, from
+  `Customers` / `DriveThru` / `Players` state rather than from the grab return.
+- `tycoon.Objects.Food` held **5** children at one probe and **2** at a later one (models named
+  `225`), both with `Taken == nil`.
 - **`getconnections` and `hookfunction` are nil in this VM; `getgc` is a function.** Therefore
-  `DropSpawned` cannot be hooked and drop ids cannot be intercepted client-side. Combined with
-  the automatic proximity collection, a direct `PlayerCollectedDrops` fire is **not reachable**
-  from a script, and is not needed.
+  `DropSpawned` cannot be hooked and drop ids cannot be intercepted client-side.
 - `workspace.DropFolder` existed but held **0** children at probe time.
 - `Events.Currency` children confirmed as `DropSpawned`, `DropsDespawned`,
   `PlayerCollectedDrops`, all **`UnreliableRemoteEvent`**.
@@ -128,10 +138,8 @@ Two zero-guess ways to obtain the real value:
 
 1. **Remote Spy** (Matcha Pro built-in): serve one customer by hand and read the actual
    `TaskCompleted` call - it prints `Name` exactly.
-2. **Let the game build the task itself:** serving is driven from an interaction on the customer
-   (`Interactions.Interacted(tycoon, {Key = "Serve", Model = customerModel})`), and the prompt
-   list already shows a `Dialog` prompt on customer HumanoidRootParts. Firing that prompt with
-   `fireproximityprompt` makes the game construct the correct task, enum included.
+2. **Let the game build the task itself:** firing the customer's own `Dialog` prompt makes the
+   game construct the correct task, enum included.
 
 Do not invent a value for `Task.Serve`. A wrong `Name` means `TaskCompleted` silently no-ops.
 
@@ -139,8 +147,11 @@ Do not invent a value for `Task.Serve`. A wrong `Name` means `TaskCompleted` sil
 
 1. The real value of `Task.Serve` (capture it, do not guess).
 2. Where `TipsCollected` is fired and its argument shape.
+3. Whether firing a customer `Dialog` prompt actually starts serving, or only opens dialogue.
+   This is the single assumption in script v2.0.0 and it is **UNVERIFIED**.
 
-## Consequence for script v1.0.0
+## Script versions
 
-v1.0.0 discovers prompts by name keyword and fires them. On this game that finds **nothing**,
-so it is a no-op. Retire it; do not ship a keyword-guessing version.
+- v1.0.0: keyword prompt scan. **No-op on this game** - retire it.
+- v2.0.0: `GrabFood:InvokeServer` for grabbing (proven), `fireproximityprompt` on `Dialog`
+  prompts for serving (unverified), `GrowAllPrompt` and `IngredientShopPrompt` for grow/shop.
