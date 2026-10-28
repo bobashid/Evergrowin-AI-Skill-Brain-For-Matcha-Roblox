@@ -5,6 +5,39 @@ must pin this place in `PLACES`. Done in Hub v3.0.
 
 Script: `Restaurant Tycoon 3` in `bobashid/roblox-matcha`.
 
+## The single most important fact (User-captured 2026-10-27, Remote Spy)
+
+**`TaskCompleted` takes `Name` as a literal string, not an enum value.** The captured bill
+payload is `Name = "CollectBill"`. This supersedes the earlier "Task.Serve enum is unreadable"
+blocker: the names are plain strings, so any task can be built if its string is known.
+Known string so far: `"CollectBill"`. Not yet captured: the order-taking and serve names.
+
+## Captured remote payloads (User-stated 2026-10-27, verbatim from Remote Spy)
+
+Tips:
+
+    game.ReplicatedStorage.Events.Restaurant.TipsCollected:FireServer(game.Workspace.Tycoons.Tycoon)
+
+One argument - the tycoon folder. No ids, no amounts.
+
+Bill collection, two calls fired together (both captured):
+
+    Events.Restaurant.Interactions.Interacted:FireServer(tycoon, {
+        Id = "142", ActionText = "", WorldPosition = Vector3.new(1204.80, 0.89, 295.99),
+        GamepadKeyCode = Enum.KeyCode.Thumbstick1, TemporaryPart = Part,
+        KeyboardKeyCode = Enum.KeyCode.E, Range = 7.2, IsCustomerPrompt = true,
+        Key = "CollectBill", Model = tycoon.Items.Surface.T19, Part = Part,
+        Prompt = 142, InteractionType = "CollectBill", HoldDuration = 0 })
+
+    Events.Restaurant.TaskCompleted:FireServer({
+        Tycoon = tycoon, Name = "CollectBill", FurnitureModel = tycoon.Items.Surface.T19 })
+
+Note the **target is the furniture model (`Surface.T19`), not its `Bill` child**. The `Bill`
+child is how you find it, but the payload wants the parent.
+
+**`Events.Restaurant.Interactions` is a remote I had not catalogued** - it is a child of the
+`Restaurant` events folder alongside `GrabFood`/`TaskCompleted`.
+
 ## Confirmed (2026-10-27, live probes via matcha_exec)
 
 - **Ownership is an ObjectValue, not an attribute.** `workspace.Tycoons` holds 8 children all
@@ -42,21 +75,14 @@ A keyword scan for dish/money/trash terms matched **0** of them, which is why v1
 | `DoorPrompt` | 1 | `Items.Furniture.D20.Base.PromptAttachment.DoorPrompt` |
 | `SeatPrompt` | 8 | `Items.Furniture.C23/C1.Base.SeatAttachment.SeatPrompt` |
 
-**Nothing else in the plot is interactable.** Specifically:
-
-- **Tip jar** `Items.Furniture.K32.Jar` is a `MeshPart` whose only child is a `BillboardGui`
-  named `TipsAmount` (plus its Frame/TextLabel/UIStroke). No prompt, no ClickDetector, no
-  TouchTransmitter.
-- **Table bill** `Items.Surface.T19.Bill` is a `Model` with 4 children (3 `Part` + `Part Base`).
-  No prompt, no ClickDetector, no TouchTransmitter.
+**Nothing else in the plot is interactable as an instance.** The tip jar
+`Items.Furniture.K32.Jar` is a `MeshPart` whose only child is a `BillboardGui` named
+`TipsAmount`. The table bill `Items.Surface.T19.Bill` is a `Model` with 4 children. Neither has
+a prompt, ClickDetector or TouchTransmitter - but both are reachable by **remote**, which is how
+the captured payloads above work.
 
 **`Dialog` prompts inside my plot: 0** (`DIALOG_IN_MY_PLOT 0`). Every `Dialog` in the place
-belongs to world NPCs. That is why firing them opened WaveyDavey's dialogue, and why an
-in-plot-only scan can never take an order.
-
-**Consequence:** "auto take order", "auto pickup tips from jar" and "auto pickup money/check
-from table" have **no client-side interaction object**. They are UI or remote driven and their
-entry points are not identified. Do not ship another guess at them.
+belongs to world NPCs, which is why firing them opened WaveyDavey's dialogue.
 
 ## Remotes (Confirmed 2026-10-27, name scan of ReplicatedStorage)
 
@@ -67,14 +93,12 @@ entry points are not identified. Do not ship another guess at them.
 | `CancelGrabRequested` | RemoteEvent | `Restaurant` |
 | `TaskCompleted` | RemoteEvent | `Restaurant` |
 | `TipsCollected` | RemoteEvent | `Restaurant` |
+| `Interactions` | (remote) | `Restaurant` |
 | `PlayerCollectedDrops` | UnreliableRemoteEvent | `Currency` |
 | `DropSpawned` / `DropsDespawned` | UnreliableRemoteEvent | `Currency` |
 | `CollectOfflineEarningsRequested` | RemoteEvent | `Upgrades` |
 | `FoodConsumed` / `FoodOrdered` / `FoodInspected` | RemoteEvent | `Food` |
 | `ItemCollected` | RemoteEvent | `ScavengerHunt` |
-
-`TipsCollected` is the most likely route for the jar, and `TaskCompleted` for the bill/order,
-but **neither argument shape has been observed**, so neither is usable yet.
 
 ## Money drops (Confirmed 2026-10-27 by decompile of `CurrencyDrops`)
 
@@ -102,27 +126,28 @@ but **neither argument shape has been observed**, so neither is usable yet.
 ## Serving food (Confirmed 2026-10-27 by decompile of `Tasks.ServeFood`)
 
 All variants end in `Events.Restaurant.TaskCompleted:FireServer(task)` with
-`Name = <Task enum>.Serve`, `Tycoon`, `FoodModel`, plus exactly one discriminator:
+`Name`, `Tycoon`, `FoodModel`, plus exactly one discriminator:
 `Player` | (`GroupId` + `CustomerId`) | `CarId`. There is a **0.25 s debounce** in the client
 `TaskInputReceived` dispatch - replicate it or calls spam.
 
-**Missing constant:** `require(ReplicatedStorage.Source.Enums.Restaurant.Task)` decompiles to
-`return {}`, so `Task.Serve` has no readable value. A wrong `Name` silently no-ops. Capture it
-with Remote Spy (serve one customer by hand) - do not invent it.
+Given the captured `Name = "CollectBill"`, `Name` is a literal string here too. The serve string
+is most likely `"Serve"`, but it is **UNVERIFIED** - capture it before shipping it.
 
 ## Script versions
 
 - v1.0.0: keyword prompt scan. No-op on this game.
 - v2.0.0: grab + Dialog serve + grow + shop. Fired world NPC dialogue (WaveyDavey).
 - v2.0.1: added a Humanoid filter on Dialog - still wrong, because WaveyDavey has a Humanoid.
-- v3.0.0: plot-scoped; grab (proven) + SeatPrompt + a Dialog order loop that was dead code
-  (0 Dialog prompts in the plot).
-- v3.1.0: grab + seat only, seat firing throttled so 8 free seats cannot be spammed; order
-  loop removed rather than left pretending.
+- v3.0.0: plot-scoped; grab + SeatPrompt + a Dialog order loop that was dead code.
+- v3.1.0: grab + seat only, seat firing throttled; order loop removed.
+- v3.2.0: grab + seat + tips (`TipsCollected:FireServer(tycoon)`) + bills
+  (`TaskCompleted` with `Name='CollectBill'`, `FurnitureModel` = the `Surface` model that holds a
+  `Bill` child). Both payloads user-captured.
 
 ## Still unknown
 
-1. `Task.Serve` value (capture with Remote Spy).
-2. How a seated customer's order is taken - no prompt in the plot, so it is UI/remote.
-3. How the tip jar and table bill are collected - neither is interactable.
-4. Where `TipsCollected` is fired and its argument shape.
+1. The order-taking payload - `Interactions` with some `Key`/`InteractionType` string, not captured.
+2. The serve `Name` string (likely `"Serve"`, unverified).
+3. Whether `Interactions.Interacted` is needed as well as `TaskCompleted` for bills, or whether
+   `TaskCompleted` alone is sufficient. v3.2.0 fires only `TaskCompleted`; if bills do not clear,
+   add the `Interactions` call from the captured payload.
