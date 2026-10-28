@@ -1,37 +1,77 @@
 # Restaurant Tycoon 3
 
-Place id **119048529960596**. `game.Name` reports **`Ugc`** (the creator group's name), so Hub
-must pin this place in `PLACES`. Done in Hub v3.0.
+Place id **119048529960596**. `game.Name` reports **`Ugc`**, so Hub must pin this place in
+`PLACES` (done, Hub v3.0).
 
 Script: `Restaurant Tycoon 3` in `bobashid/roblox-matcha`.
 
 ## Corrections from the user (User-stated 2026-10-27)
 
-- **"Auto seat" does NOT mean firing `SeatPrompt`.** The user meant **accepting a guest's
-  arrival prompt when they walk into the restaurant**. v3.0-v3.2 fired `SeatPrompt` and were
-  wrong; the toggle was removed in v3.3.0. The guest-accept payload has **not** been captured
-  yet, so nothing may guess at it.
-- **"It keeps activating dialogue for WaveyDavey"** - firing `Dialog` prompts hit world NPCs,
-  not customers. There are 0 `Dialog` prompts inside the plot. Dialog firing is banned.
+- **"Auto seat" does NOT mean firing `SeatPrompt`.** It means accepting a guest's arrival
+  prompt. The SeatPrompt toggle was removed in v3.3.0.
+- **Firing `Dialog` prompts opened WaveyDavey's dialogue.** There are 0 `Dialog` prompts in
+  the plot. Dialog firing is banned.
 - **`💸 Cash` rises on its own** (passive income), so a rising balance is not evidence.
+- **Grabbing worked, serving did not** - "it picks up the food from the counter but doesnt
+  give it to the guest that is requesting that specific food". That drove v3.4.0.
 
-## The single most important fact (User-captured 2026-10-27, Remote Spy)
+## Guest system (Confirmed 2026-10-27, live probe)
 
-**`TaskCompleted` takes `Name` as a literal string, not an enum value.** The captured bill
-payload is `Name = "CollectBill"`. This supersedes the earlier "Task.Serve enum is unreadable"
-blocker: the names are plain strings, so any task can be built if its string is known.
-Known string so far: `"CollectBill"`. Not yet captured: the guest-accept, order-taking and
-serve names.
+`Workspace.Tycoons.Tycoon` children include **`ClientCustomers`** and **`ClientWorkers`** (both
+`Folder`s, created client-side, absent on earlier probes):
 
-## Captured remote payloads (User-stated 2026-10-27, verbatim from Remote Spy)
+    ClientCustomers
+      Folder "14"  -> Model "1", Model "2"
+      Folder "15"  -> Model "1", Model "2"
+      Folder "16"  -> Model "1", Model "2"
+      Folder "17"  -> Model "1", Model "2"
+
+- **The folder name IS the `GroupId`, the model name IS the `CustomerId`** - they are integers,
+  which is exactly the pair `Tasks.ServeFood` looks up via
+  `Customers:GetCustomerData(tycoon, groupId, customerId)`.
+- Customer models contain a `BillboardGui` named `CustomerTypeLabel` (and sometimes another
+  `BillboardGui`). **No ProximityPrompt, no ClickDetector, and no Humanoid** (`hum=false` on all
+  of them) - these are client-side dummies, so `fireproximityprompt` can never serve.
+- There is **no `Customers` folder under the tycoon** (`CUSTOMERS -1`); the data lives in the
+  client module's `TycoonStorage` table, not in the DataModel.
+
+## Food attributes (Confirmed 2026-10-27, live probe)
+
+`Objects.Food` children carry attributes `1 = EatMethod` and `2 = Taken` (numeric keys, seen
+printed as `1=EatMethod,2=Taken`). So `EatMethod` is an attribute on each dish - the likely
+key to matching a dish to the guest that requested it.
+
+## Serving food (Confirmed 2026-10-27 by decompile + live probe)
+
+`Events.Restaurant.TaskCompleted:FireServer(task)` with `Name`, `Tycoon`, `FoodModel`, plus one
+discriminator: `Player` | (`GroupId` + `CustomerId`) | `CarId`. 0.25 s debounce in the client
+dispatch. Client precondition for the NPC branch:
+`Customers:GetCustomerData(tycoon, groupId, customerId).State == CustomerState.WaitingForDish`
+and `GrabFood:IsHoldingFoodForNPC(order, isKid)`.
+
+v3.4.0 sends `{ Name = 'Serve', Tycoon = tycoon, GroupId = <folder name>,
+CustomerId = <model name>, FoodModel = <first dish> }`.
+
+**UNVERIFIED: the `Name = 'Serve'` string.** The captured bill payload uses a literal string
+(`"CollectBill"`), so this is very likely `"Serve"`, but it has not been observed. If serving
+no-ops, capture one hand-serve with Remote Spy before changing anything else.
+
+**Second open question:** the dish must match the guest's request
+(`IsHoldingFoodForNPC(order, isKid)`), and the first dish in `Objects.Food` may not be the
+requested one. The match likely keys off the dish's `EatMethod` attribute.
+
+## The most important fact (User-captured 2026-10-27, Remote Spy)
+
+**`TaskCompleted` takes `Name` as a literal string, not an enum value** (`Name = "CollectBill"`).
+This retired the earlier "Task.Serve enum is unreadable" blocker.
+
+## Captured remote payloads (User-stated 2026-10-27, verbatim)
 
 Tips:
 
-    game.ReplicatedStorage.Events.Restaurant.TipsCollected:FireServer(game.Workspace.Tycoons.Tycoon)
+    Events.Restaurant.TipsCollected:FireServer(game.Workspace.Tycoons.Tycoon)
 
-One argument - the tycoon folder. No ids, no amounts.
-
-Bill collection, two calls fired together (both captured):
+Bill (two calls fired together):
 
     Events.Restaurant.Interactions.Interacted:FireServer(tycoon, {
         Id = "142", ActionText = "", WorldPosition = Vector3.new(1204.80, 0.89, 295.99),
@@ -43,110 +83,36 @@ Bill collection, two calls fired together (both captured):
     Events.Restaurant.TaskCompleted:FireServer({
         Tycoon = tycoon, Name = "CollectBill", FurnitureModel = tycoon.Items.Surface.T19 })
 
-Note the **target is the furniture model (`Surface.T19`), not its `Bill` child**. The `Bill`
-child is how you find it, but the payload wants the parent.
+The bill target is the **`Surface` model**, not its `Bill` child.
+`IsCustomerPrompt = true` is the clue that guest prompts share the `Interactions` remote.
 
-**`IsCustomerPrompt = true` in that payload is the clue for guest-seating:** the guest arrival
-prompt almost certainly goes through the same `Interactions.Interacted` remote with its own
-`Key`/`InteractionType` string. Capture it - do not guess it.
+## Other confirmed facts (2026-10-27, live probes)
 
-## Confirmed (2026-10-27, live probes via matcha_exec)
-
-- **Ownership is an ObjectValue, not an attribute.** `workspace.Tycoons` holds 8 children all
-  named `Tycoon`; `GetAttribute('Owner')` returns nil on every one. Owner test:
-  `plot.Player.Value == LocalPlayer`.
-- **Currency:** `LocalPlayer.leaderstats` -> `IntValue` named `💸 Cash` (emoji + space).
-- **Tycoon layout:** `Locations` (6 CFrameValues), `Player` (ObjectValue), `Objects` (Food,
-  Advertising, CookingResources), `GreyBox`, `Default`, `Items`.
-  `Items` = BeingPlaced, Furniture (19), Surface (10), Walls (42), Floor (9), Config (2), Stairs (0).
-- **`Items.Furniture.K32.Cash` is DECORATION, not money.** 16 child Models, 2 MeshParts each,
-  and inside that subtree: 0 TouchTransmitter, 0 ProximityPrompt, 0 ClickDetector, 0 Attachment.
-- Food models live in `Objects.Food`, named numerically (seen `225`); `Taken` reads nil when fresh.
-
-## Prompt inventory (Confirmed 2026-10-27, whole-workspace scan)
-
-About 350 `ProximityPrompt`/`ClickDetector` exist in `workspace`. Real names seen:
-`RestaurantBoardPrompt`, `SeatPrompt`, `DoorPrompt`, `BuyPrompt` (cosmetics on hats and emotes),
-`IngredientShopPrompt`, `GrowAllPrompt`, `Dialog`, `ChefLuigi`, `CreditsPrompt`,
-`EventHistoryMachinePrompt`, and several plain `ProximityPrompt`.
-
-A keyword scan for dish/money/trash terms matched **0** of them, which is why v1.0.0 did nothing.
-
-`GrowAllPrompt` sits on a `Sign`; `IngredientShopPrompt` sits on a `HumanoidRootPart`.
-
-## My plot's complete interactable inventory (Confirmed 2026-10-27)
-
-`Items:GetDescendants()` scanned for ProximityPrompt / ClickDetector / TouchTransmitter:
-
-    INTERACT_IN_ITEMS = 9
-
-| What | Count | Path shape |
-|---|---|---|
-| `DoorPrompt` | 1 | `Items.Furniture.D20.Base.PromptAttachment.DoorPrompt` |
-| `SeatPrompt` | 8 | `Items.Furniture.C23/C1.Base.SeatAttachment.SeatPrompt` |
-
-**Nothing else in the plot is interactable as an instance.** The tip jar
-`Items.Furniture.K32.Jar` is a `MeshPart` whose only child is a `BillboardGui` named
-`TipsAmount`. The table bill `Items.Surface.T19.Bill` is a `Model` with 4 children. Neither has
-a prompt, ClickDetector or TouchTransmitter - both are reachable only by **remote**.
-
-**`Dialog` prompts inside my plot: 0** (`DIALOG_IN_MY_PLOT 0`).
-
-## Remotes (Confirmed 2026-10-27, name scan of ReplicatedStorage)
-
-| Remote | Class | Parent |
-|---|---|---|
-| `GrabFood` | RemoteFunction | `Restaurant` |
-| `GrabEnded` | RemoteEvent | `Restaurant` |
-| `CancelGrabRequested` | RemoteEvent | `Restaurant` |
-| `TaskCompleted` | RemoteEvent | `Restaurant` |
-| `TipsCollected` | RemoteEvent | `Restaurant` |
-| `Interactions` | (remote) | `Restaurant` |
-| `PlayerCollectedDrops` | UnreliableRemoteEvent | `Currency` |
-| `DropSpawned` / `DropsDespawned` | UnreliableRemoteEvent | `Currency` |
-| `CollectOfflineEarningsRequested` | RemoteEvent | `Upgrades` |
-| `FoodConsumed` / `FoodOrdered` / `FoodInspected` | RemoteEvent | `Food` |
-| `ItemCollected` | RemoteEvent | `ScavengerHunt` |
-
-## Money drops (Confirmed 2026-10-27 by decompile of `CurrencyDrops`)
-
-- Drops clone into **`workspace.DropFolder`**; ids come from the server via
-  `Events.Currency.DropSpawned.OnClientEvent(_, dropId, data)`.
-- **Collection is automatic by proximity:** `MagnitudeSquared(drop, HumanoidRootPart) <=
-  (7 + SizeModifier)^2`, then a ~1 s Lerp pull and a batched
-  `PlayerCollectedDrops:FireServer({ids})` (single array argument). 120 s despawn.
-- `getconnections` and `hookfunction` are **nil** in this VM (`getgc` is a function).
-
-## Grabbing food (Confirmed 2026-10-27)
-
-- `local ok, info = Events.Restaurant.GrabFood:InvokeServer(foodModel)`; the food Model is the
-  only argument. Preconditions: `Managers:HasPermission(tycoon)`, `Cook:PlayerIsCooking()` false,
-  `food:GetAttribute('Taken')` falsy, all held items from the same tycoon.
-- Hold capacity = `WaiterCart and 4 or WaiterTray and 3 or 1`.
-- **Proven live:** called on `Objects.Food.3`, returned **`true`**, and **no info table**.
-
-## Serving food (Confirmed 2026-10-27 by decompile of `Tasks.ServeFood`)
-
-All variants end in `Events.Restaurant.TaskCompleted:FireServer(task)` with `Name`, `Tycoon`,
-`FoodModel`, plus one discriminator: `Player` | (`GroupId` + `CustomerId`) | `CarId`. There is
-a **0.25 s debounce** in the client dispatch.
-
-Given the captured `Name = "CollectBill"`, `Name` is a literal string here too. The serve
-string is probably `"Serve"` but is **UNVERIFIED** - capture it before shipping it.
+- Ownership is an **`ObjectValue` named `Player`**, not an attribute: `plot.Player.Value == lp`.
+- Currency is `leaderstats` -> `IntValue` named `💸 Cash` (emoji + space).
+- `Items` = BeingPlaced, Furniture (19), Surface (10), Walls (42), Floor (9), Config (2), Stairs (0).
+- `Items.Furniture.K32.Cash` is **decoration**: 16 Models, 0 touch/prompt/detector/attachment.
+- Plot interactables total **9**: 1 `DoorPrompt`, 8 `SeatPrompt`. Nothing else.
+- Tip jar `Items.Furniture.K32.Jar` = MeshPart + `TipsAmount` BillboardGui only.
+- `Dialog` prompts in plot: **0**. Workspace total ~350 prompts.
+- Money drops: `workspace.DropFolder`, auto-collected inside `7 + SizeModifier` studs via a
+  batched `PlayerCollectedDrops:FireServer({ids})`. `getconnections`/`hookfunction` are nil.
+- `GrabFood:InvokeServer(foodModel)` **proven live**, returns bare `true` (no info table).
 
 ## Script versions
 
-- v1.0.0: keyword prompt scan. No-op on this game.
-- v2.0.0: grab + Dialog serve + grow + shop. Fired world NPC dialogue (WaveyDavey).
-- v2.0.1: Humanoid filter on Dialog - still wrong, WaveyDavey has a Humanoid.
-- v3.0.0: plot-scoped; grab + SeatPrompt + dead Dialog order loop.
-- v3.1.0: grab + seat only, throttled.
+- v1.0.0: keyword prompt scan. No-op.
+- v2.0.0: grab + Dialog serve + grow + shop. Fired world NPC dialogue.
+- v2.0.1: Humanoid filter on Dialog - still wrong.
+- v3.0.0: plot-scoped; grab + SeatPrompt + dead Dialog loop.
+- v3.1.0: grab + seat, throttled.
 - v3.2.0: grab + seat + tips + bills.
-- v3.3.0: **SeatPrompt removed** (wrong meaning of "auto seat"); grab + tips + bills only.
+- v3.3.0: seat removed (wrong meaning); grab + tips + bills.
+- v3.4.0: **serve added** using `ClientCustomers` GroupId/CustomerId; grab + serve + tips + bills.
 
 ## Still unknown
 
-1. **The guest-accept payload** (`Interactions.Interacted`, `IsCustomerPrompt = true`, own
-   `Key`/`InteractionType`). This is what the user actually wants from "auto seat".
-2. The order-taking payload.
-3. The serve `Name` string (probably `"Serve"`).
+1. The `Name = 'Serve'` string (capture a hand-serve).
+2. How to match the dish to the guest's request (`EatMethod` attribute is the lead).
+3. The guest-accept payload (`Interactions.Interacted`, `IsCustomerPrompt = true`).
+4. The order-taking payload.
