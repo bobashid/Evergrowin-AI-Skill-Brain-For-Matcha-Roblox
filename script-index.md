@@ -12,7 +12,7 @@ the same turn.** That is part of the push procedure, not an extra step.
 
 | Game (file name) | Place ID | Bytes | Brain note |
 |---|---|---|---|
-| `Pulse Fitness Club` | 85646026816836 | 17074 | `games/Pulse Fitness Club.md` |
+| `Plunder PVP` | 85646026816836 | 17131 | `games/Plunder PVP.md` |
 | `CQB Hell` | 98689921952741 | ~21k | `games/CQB Hell.md` |
 | `Merge Block Arena` | 76024476718474 | 10698 | `games/Merge Block Arena.md` |
 | `Merge Block Arena Weapons` | 76024476718474 (alt) | 7996 | `games/Merge Block Arena.md` |
@@ -31,16 +31,19 @@ the same turn.** That is part of the push procedure, not an extra step.
 | `What If Disasters` | 109440485612336 | 40823 | - |
 | `+1 Upgrade Per Kill` | 113273588963037 | 27161 | - |
 | `Build And Kill Zombies` | 105011592530400 | 8355 | - |
-| `Hub` | n/a (loader) | 6816 | `hub-sync.md` |
+| `Hub` | n/a (loader) | 6802 | `hub-sync.md` |
 
 ## Notes on the table
 
-- **`game.Name` is not always the game.** Merge Block Arena, Pulse Fitness Club and Restaurant
-  Tycoon 3 all report `game.Name == 'Ugc'`, the creator group's name. Those three files are
-  named after the real title found from the place page or in-game signage. Check a suspicious
-  name against the web before naming a file after it.
+- **`game.Name` is not always the game.** Merge Block Arena, Plunder PVP and Restaurant Tycoon 3
+  all report `game.Name == 'Ugc'`, the creator group's name. Those three files are named after
+  the real title found from the place page, in-game signage, or supplied by the user (Plunder PVP
+  was named by the user). Check a suspicious name against the web before naming a file after it.
 - **All three `Ugc` games are pinned by place id**, so name matching is never used for them.
-  Their `SCRIPTS` keys exist for manual `_G.Hub.load(...)` calls.
+  Their `SCRIPTS` keys exist only for manual `_G.Hub.load(...)` calls.
+- **A rename means three writes, not one.** Create the new file, repoint `PLACES` and `SCRIPTS`
+  in the same turn, then `delete_file` the old one. `Plunder PVP` was renamed this way from
+  `Pulse Fitness Club` on 2026-10-29; the old file no longer exists.
 - **Two scripts can share one place id.** `PLACES` holds one per id: Merge Block Arena is pinned
   and the Weapons build loads with `_G.Hub.load('Merge Block Arena Weapons')`. Same arrangement
   as Prison Life. Both stay in `SCRIPTS` so manual load keeps working.
