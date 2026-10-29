@@ -4,7 +4,7 @@
 user on 2026-10-29; the earlier name `Pulse Fitness Club` came from in-game signage and was wrong
 as a game title. Never name a file after `game.Name` here.
 
-- Script: `bobashid/roblox-matcha/Plunder PVP`, current **v1.2**, 17402 bytes.
+- Script: `bobashid/roblox-matcha/Plunder PVP`, current **v1.2**, 22070 bytes.
 - Hub: pinned in `PLACES` as of Hub **v3.2** (no Hub edit needed when a file keeps its name).
 - Features: player ESP (box + name + distance), item ESP (cleaned labels), container/safe ESP with
   lock state, Max Distance and Transparency sliders.
@@ -27,10 +27,16 @@ as a game title. Never name a file after `game.Name` here.
   `TallCabinetSC` x7, `RocketPartsRack` x6, `SmallSafe` x5, `WallMedicalBoxSC` x5,
   `ControlConsole` x4, `SuitLocker` x4, `TrashCan2SC` x4, `LargeSafeSC` x2, `WallMedicalBox` x2,
   `TallCabinet` x1, `SampleFridge` x1.
+- **That container folder is intermittent.** One probe returned `PATH true` with 160 children and
+  7 safes; another minutes later returned `PATH false` with the identical code. Treat a nil folder
+  as "area not loaded / round transition", not as a wrong path. The script re-resolves it every
+  second scan and simply draws nothing while it is absent - do NOT "fix" it by hardcoding a new
+  path in response to a nil read.
 - Containers carry `SafeLocked`, `ContainerOpened`, `ContainerCid`, `ContainerLayout` attributes.
-  `SafeLocked == true` is the lock state; the ESP shows it red with a `LOCKED` suffix. Not every
-  kind has it (`ComputerTower` had none), so the read must be treated as tri-state: true / false /
-  nil-means-unknown.
+  `SafeLocked == true` is the lock state; the ESP shows it red with a `LOCKED` suffix. Confirmed on
+  the safes themselves: `SmallSafe locked=true opened=false`, `LargeSafeSC locked=true
+  opened=false`, one `SmallSafe locked=false`. Not every kind has it (`ComputerTower` had none), so
+  the read is tri-state: true / false / nil-means-unknown.
 - **World item names are not replicated.** `WorldItem` children have no `BillboardGui`,
   `SurfaceGui`, `TextLabel` or `StringValue` anywhere in their tree (walked to depth 8), and no
   attributes. Only mesh/part names exist (`Tape`, `SIG556`, `tripo_node_...`), so a label has to be
@@ -40,15 +46,16 @@ as a game title. Never name a file after `game.Name` here.
 - `MarketplaceService:GetProductInfo` is **missing**, so the title must come from the user or the
   Roblox page.
 - **v1.1 bug, fixed in v1.2:** `scanContainers` looked up `Workspace.GameScene.Container`, which
-  does not exist, so the container toggle drew nothing. The path above is correct; the function now
-  also falls back to a name search for any `Folder` named `Container` with more than 20 children.
+  does not exist, so the container toggle drew nothing for a whole version. The path above is
+  correct; the function also falls back to a name search for any `Folder` named `Container` with
+  more than 20 children.
 
 ## UNVERIFIED
 
-- Whether `SafeLocked` exists on `SmallSafe` / `LargeSafeSC` specifically (only `ComputerTowerSC`
-  was sampled). The code is nil-safe either way, so a missing attribute just means "no colour".
 - Whether the server validates range for the container prompts. Irrelevant to the ESP; matters if
   an auto-loot is added - use `fireproximityprompt`, then read state back.
+- Whether the container folder is absent only between rounds or also while inside a match. Two
+  samples only, one each way.
 
 ## Open questions
 
