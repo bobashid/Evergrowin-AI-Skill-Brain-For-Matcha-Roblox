@@ -12,12 +12,13 @@ the same turn.** That is part of the push procedure, not an extra step.
 
 | Game (file name) | Place ID | Bytes | Brain note |
 |---|---|---|---|
+| `Pulse Fitness Club` | 85646026816836 | 17074 | `games/Pulse Fitness Club.md` |
 | `CQB Hell` | 98689921952741 | ~21k | `games/CQB Hell.md` |
 | `Merge Block Arena` | 76024476718474 | 10698 | `games/Merge Block Arena.md` |
 | `Merge Block Arena Weapons` | 76024476718474 (alt) | 7996 | `games/Merge Block Arena.md` |
 | `Piano Rhythm Tiles` | 101999883467300 | 15147 | `games/Piano Rhythm Tiles.md` |
 | `Realistic Home Defense` | 105527962898452 | 14208 | `games/Realistic Home Defense.md` |
-| `Restaurant Tycoon 3` | unknown (Hub name match) | 8608 | - |
+| `Restaurant Tycoon 3` | 119048529960596 | 8608 | - |
 | `Chop A Forest` | 103363457515322 | 21785 | - |
 | `Clean Everything` | 140576663170542 | 17762 | - |
 | `Command An Army` | 101770480176177 | 75920 | - |
@@ -30,14 +31,14 @@ the same turn.** That is part of the push procedure, not an extra step.
 | `What If Disasters` | 109440485612336 | 40823 | - |
 | `+1 Upgrade Per Kill` | 113273588963037 | 27161 | - |
 | `Build And Kill Zombies` | 105011592530400 | 8355 | - |
-| `Hub` | n/a (loader) | 6570 | `hub-sync.md` |
+| `Hub` | n/a (loader) | 6760 | `hub-sync.md` |
 
 ## Notes on the table
 
 - **`game.Name` is not always the game.** Merge Block Arena reports `game.Name == 'Ugc'`, the
-  creator group's name. Its file is named after the real title found from the place page. Check
+  creator group's name. Same for Pulse Fitness Club and Restaurant Tycoon 3. Its file is named after the real title found from the place page. Check
   a suspicious name against the web before naming a file after it.
-- **`Restaurant Tycoon 3` has no place id yet.** It is reachable by name match only, so it loads
+- **Restaurant Tycoon 3 has no place id yet.** It is reachable by name match only, so it loads
   when `game.Name` normalises to something containing `restauranttycoon`. Add the id to
   `PLACES` as soon as one is read from the live game.
 - **Two scripts can share one place id.** `PLACES` holds one per id: Merge Block Arena is pinned
