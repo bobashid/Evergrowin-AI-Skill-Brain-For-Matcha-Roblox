@@ -31,24 +31,25 @@ the same turn.** That is part of the push procedure, not an extra step.
 | `What If Disasters` | 109440485612336 | 40823 | - |
 | `+1 Upgrade Per Kill` | 113273588963037 | 27161 | - |
 | `Build And Kill Zombies` | 105011592530400 | 8355 | - |
-| `Hub` | n/a (loader) | 6760 | `hub-sync.md` |
+| `Hub` | n/a (loader) | 6816 | `hub-sync.md` |
 
 ## Notes on the table
 
-- **`game.Name` is not always the game.** Merge Block Arena reports `game.Name == 'Ugc'`, the
-  creator group's name. Same for Pulse Fitness Club and Restaurant Tycoon 3. Its file is named after the real title found from the place page. Check
-  a suspicious name against the web before naming a file after it.
-- **Restaurant Tycoon 3 has no place id yet.** It is reachable by name match only, so it loads
-  when `game.Name` normalises to something containing `restauranttycoon`. Add the id to
-  `PLACES` as soon as one is read from the live game.
+- **`game.Name` is not always the game.** Merge Block Arena, Pulse Fitness Club and Restaurant
+  Tycoon 3 all report `game.Name == 'Ugc'`, the creator group's name. Those three files are
+  named after the real title found from the place page or in-game signage. Check a suspicious
+  name against the web before naming a file after it.
+- **All three `Ugc` games are pinned by place id**, so name matching is never used for them.
+  Their `SCRIPTS` keys exist for manual `_G.Hub.load(...)` calls.
 - **Two scripts can share one place id.** `PLACES` holds one per id: Merge Block Arena is pinned
   and the Weapons build loads with `_G.Hub.load('Merge Block Arena Weapons')`. Same arrangement
   as Prison Life. Both stay in `SCRIPTS` so manual load keeps working.
 - **Prison Life has two scripts on one place id.** `PLACES` can hold one, so it points at
   `PRISON LIFE TRIGGERBOT`; the HvH build is reachable with
   `_G.Hub.load('Prison Life HvH')`. Both stay in `SCRIPTS` so manual load keeps working.
-- **Place ids come from `Hub`'s `PLACES` table**, read 2026-10-27. If one is wrong, `PLACES` is
-  wrong and both need fixing together.
+- **Place ids come from `Hub`'s `PLACES` table**, read 2026-10-27, plus 85646026816836 read from
+  `matcha_status` in-game on 2026-10-29. If one is wrong, `PLACES` is wrong and both need fixing
+  together.
 - **Byte sizes are rough indicators only**; read the file for the real number before quoting one.
 - A note in the `Brain note` column means a `games/<Game>.md` exists with confirmed facts
   (remotes, attributes, quirks). No note means the next session starts from zero on that game.
