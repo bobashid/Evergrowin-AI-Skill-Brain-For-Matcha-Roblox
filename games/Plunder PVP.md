@@ -4,10 +4,10 @@
 user on 2026-10-29; the earlier name `Pulse Fitness Club` came from in-game signage and was wrong
 as a game title. Never name a file after `game.Name` here.
 
-- Script: `bobashid/roblox-matcha/Plunder PVP`, current **v1.2**, 22070 bytes.
+- Script: `bobashid/roblox-matcha/Plunder PVP`, current **v1.3**, 22919 bytes.
 - Hub: pinned in `PLACES` as of Hub **v3.2** (no Hub edit needed when a file keeps its name).
-- Features: player ESP (box + name + distance), item ESP (cleaned labels), container/safe ESP with
-  lock state, Max Distance and Transparency sliders.
+- Features: player ESP (box + name + distance), item ESP (cleaned labels, coins skipped),
+  container/safe ESP with lock state, Max Distance and Transparency sliders.
 
 ## Confirmed (2026-10-29, live probes)
 
@@ -49,9 +49,17 @@ as a game title. Never name a file after `game.Name` here.
   does not exist, so the container toggle drew nothing for a whole version. The path above is
   correct; the function also falls back to a name search for any `Folder` named `Container` with
   more than 20 children.
+- **User-stated (2026-10-29): coins must not be drawn by the item ESP.** v1.3 skips a coin by its
+  **resolved label** (`SKIP_LABEL` plus a `coin` substring catch), applied in `scanItems` before the
+  entry is added to the list. Do not implement this by adding `coin` to `JUNK`: `JUNK` only rejects
+  a part name and falls through to the next part, so a coin would render as `Loot` instead of
+  disappearing.
 
 ## UNVERIFIED
 
+- Whether the coin's label actually reads `coin` in a live session. Coins never appeared in the
+  `WorldItem` probes (`WorldItem_11`, `WorldItem_13`, `Tape`, `SIG556`), so the filter is a label
+  match, not an observed name. If a coin still draws, read its on-screen label and add it.
 - Whether the server validates range for the container prompts. Irrelevant to the ESP; matters if
   an auto-loot is added - use `fireproximityprompt`, then read state back.
 - Whether the container folder is absent only between rounds or also while inside a match. Two
