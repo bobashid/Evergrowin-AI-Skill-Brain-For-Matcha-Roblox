@@ -144,3 +144,14 @@ The fix is not to give up the cosmetic; it is to swap the functional value in fo
 - The read-back in step 1 is what makes this safe. Trusting your own last write instead would have the script fighting the game.
 
 Third-party sample (2026-10-30): Arsenal Melee Changer's "SwingFix", `wait(0.42)` for the swing window, HUD path `GUI_Interface.Vitals.Ammo.Gun.Text`. UNVERIFIED - 0.42 s is the author's number and exactly the kind of constant that has to be re-measured against the game rather than copied.
+
+## Recognise an internal-executor script before trying to port it
+A script from the Discord is not automatically a Matcha script. Some are written for a full-exploit executor that exposes the whole Roblox API. The tells, cheapest first:
+1. **`Instance.new(...)` anywhere.** `Instance` is nil in this VM, so the chunk dies on that line and nothing runs - not even a version print. This one test is decisive.
+2. **`PlayerScriptsLoader` disabled plus a pasted copy of `PlayerModule` / `CameraModule` / `ControlModule` / `Animate` / `_sounds`.** That is a total replacement of the default camera and control scripts; there is no `stop()` path back and re-running it stacks a second copy.
+3. `Weld` / `VectorForce` / `BodyGyro` / `Attachment` / `:GetTouchingParts()` / `FindPartOnRayWithIgnoreList` / `Humanoid:LoadAnimation` - all of these need Instance creation or are removed from modern Roblox.
+4. `spawn` / `wait` as the only scheduling, and no `_G` registration.
+
+If tells 1 or 2 are present, the script **cannot be ported by editing** - the mechanism itself needs Instance creation. Two honest choices: run it in an executor that has `Instance`, or reimplement the *effect* with what Matcha does expose (property writes, `CFrame` / `Velocity` updates inside a `RenderStepped` loop, `Drawing` for visuals).
+
+Confirmed (2026-10-30) as a recognition rule, not as a Matcha test: a "wall walking" script posted as internal-executor code is a full PlayerModule replacement - `Instance.new("Part")` for the collider, `Instance.new("VectorForce")` + `BodyGyro` for custom gravity, `Instance.new("Weld")` to attach them, plus a rebuilt `Animate` and a `ScreenGui` for click-to-move. Zero of that exists in this VM. Proof: the pasted source plus the `Instance` is nil rule in `SKILL.md`. The user's own wording was "for internal executing".
