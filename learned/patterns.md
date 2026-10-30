@@ -72,3 +72,30 @@ A session can correct itself many times in one conversation and still leave the 
 - Corollary: reading the brain and then improvising is the same failure with a better excuse. A dated brain stamp in the reply is the only cheap proof that the read happened.
 
 Confirmed (2026-10-26): the user's own diagnosis of a parallel Piano Tiles chat - it found real bugs (stale read-backs, a cursor pinned at 1919,1079, mouse input dead, an out-of-range hold duration) and wrote none of them down, so a later session had to rediscover every one. Proof: user observation plus the transcript.
+
+## Idempotent key-state setter: hold a key while a condition is true
+When a game wants a key *held* rather than tapped (block, sprint, crouch, a hold note), drive it from a single setter that early-returns when the state already matches:
+```lua
+local state = false
+local function set(vk, want)
+    if want == state then return end
+    state = want
+    if want then keypress(vk) else keyrelease(vk) end
+end
+```
+- The guard is the whole point. A loop that re-applies every frame without it spams `keypress`/`keyrelease` dozens of times a second and the game sees a flicker instead of a hold.
+- Call the setter from one loop with the condition; do not press in one place and release in another.
+- Clear it on every early-exit path (no character, target gone, toggle off) or the key stays down.
+
+Third-party sample (2026-10-30): The Strongest Battlegrounds AutoBlock holds `F` while the opponent has an `M1ing`/`NoBlock` marker and releases when it goes, with exactly this guard (`if state == blocking then return end`). The same shape is what a hold note needs: key down while the note body is alive, release when it dies. UNVERIFIED as a Matcha-tested result - the sample is someone else's script, and the Piano Tiles hold was fixed by a duration constant, not by this. The reasoning is sound and cheap to apply; it is not yet a measured win in our own scripts.
+
+## Screen-space ring from world-space points
+To draw a range circle or any world-space outline with `Drawing.Line`:
+1. Sample N points around the world position (16 was enough), `p_i = center + (cos a, 0, sin a) * radius`.
+2. Run each through `WorldToScreen`, keeping both returns: position and on-screen flag.
+3. Draw chord `i-1 -> i` only when *both* endpoints are flagged visible; otherwise hide that line.
+
+- The per-segment visibility test is what stops the half of the ring behind the camera from smearing across the screen as one long line.
+- Pool the Line objects once at startup and only mutate `From`/`To`/`Color`/`Visible` per frame; creating Drawings in a loop is the freeze.
+
+Third-party sample (2026-10-30): The Strongest Battlegrounds AutoBlock, 16 segments, colour switched by whether a target is locked. Same UNVERIFIED caveat as above - seen in someone else's working script, not yet run in ours.
