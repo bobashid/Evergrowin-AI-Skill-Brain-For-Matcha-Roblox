@@ -155,3 +155,18 @@ A script from the Discord is not automatically a Matcha script. Some are written
 If tells 1 or 2 are present, the script **cannot be ported by editing** - the mechanism itself needs Instance creation. Two honest choices: run it in an executor that has `Instance`, or reimplement the *effect* with what Matcha does expose (property writes, `CFrame` / `Velocity` updates inside a `RenderStepped` loop, `Drawing` for visuals).
 
 Confirmed (2026-10-30) as a recognition rule, not as a Matcha test: a "wall walking" script posted as internal-executor code is a full PlayerModule replacement - `Instance.new("Part")` for the collider, `Instance.new("VectorForce")` + `BodyGyro` for custom gravity, `Instance.new("Weld")` to attach them, plus a rebuilt `Animate` and a `ScreenGui` for click-to-move. Zero of that exists in this VM. Proof: the pasted source plus the `Instance` is nil rule in `SKILL.md`. The user's own wording was "for internal executing".
+
+## Ease a hard constraint instead of snapping to it
+
+When a script pins an object to a surface (wall, ground, rail, seat), applying the constraint at full strength on the first frame reads as a magnet: the object is yanked onto the surface and welded there, and the user reports "unsmooth" or "sticky". This is not a detection bug and re-detecting will not fix it. Three changes, all needed:
+
+1. **Hysteresis on the attach test.** Attach when the surface is close (4.5 studs); stay while it is farther (7.5). A single radius for both is either too grabby or too sticky.
+2. **Ramp the constraint instead of applying it.** Hold `pull = 0` on attach and ease it to 1 at ~10/s, then blend: `target = desired + (onWall - desired) * pull`. Tangential movement keeps full speed; only the pull onto the surface ramps, so you glide on over ~0.25 s.
+3. **Lerp the basis instead of assigning it.** If the constraint also sets an orientation, ease the up vector toward the new normal at ~8/s. Corners and face changes then round off rather than snap.
+
+- Seed the eased basis from the object's *current* orientation on attach, not from the target, or frame one still snaps.
+- Require that the player is facing the surface (`camLook:Dot(-n) > 0.15`) before attaching, or brushing past a wall latches you to it.
+- Run the "surface changed" detach test against the **raw** normal, not the eased one - the easing itself looks like a change otherwise.
+- Symptom to recognise: "it works but feels like a magnet / feels unsmooth" means the constraint is applied at full strength. Tune the ramp rates, do not rewrite the detection.
+
+Design-not-yet-tested (2026-10-30): applied to Wall Walk v3.2 after the user reported exactly this on v3.1 - "feels unsmooth and i feel like my feet are magnets to walls" - where position and basis were both written at full strength every physics step. The pattern is reasoned from that failure, not yet confirmed by a test run in our own scripts.
