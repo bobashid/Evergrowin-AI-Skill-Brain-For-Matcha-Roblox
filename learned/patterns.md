@@ -99,3 +99,48 @@ To draw a range circle or any world-space outline with `Drawing.Line`:
 - Pool the Line objects once at startup and only mutate `From`/`To`/`Color`/`Visible` per frame; creating Drawings in a loop is the freeze.
 
 Third-party sample (2026-10-30): The Strongest Battlegrounds AutoBlock, 16 segments, colour switched by whether a target is locked. Same UNVERIFIED caveat as above - seen in someone else's working script, not yet run in ours.
+
+## Restore last-known-good when the game validates a Value you wrote
+Some games sanitise a Value you write: you set `Data.Melee.Value = "SomeSkin"`, the game rejects it and writes back an empty string or a number. A script that only writes ends up holding a poisoned value and no idea why.
+Keep the last value the game accepted, and restore from it:
+```lua
+local lastGood = value.Value
+local function valid(v)
+    return type(v) == "string" and string.find(v, "%a") ~= nil
+end
+-- each frame, BEFORE using the value:
+if not valid(value.Value) then
+    value.Value = valid(lastGood) and lastGood or DEFAULT
+else
+    lastGood = value.Value
+end
+```
+- `string.find(v, "%a")` = "contains at least one letter" is a cheap reject for nil, `""`, and numeric garbage - which is exactly what a cleared StringValue looks like.
+- Check *before* you use the value, not after the script breaks. The first read after the game clears it is the only warning you get.
+- Keep a hardcoded default as the last resort: `lastGood` can itself be poisoned if the game clears it twice before the loop runs again.
+
+Third-party sample (2026-10-30): Arsenal Melee Changer, `player.Data.Melee` (StringValue), default `dfmelee`. UNVERIFIED - the script asserts the game clears invalid melees; we have not probed it.
+
+## Virtual scrolling list with a fixed Drawing pool
+A list of 100+ names must never create a Drawing per row. Pool `MaxVisible` rows once and map pool slot `i` to list index `ScrollOffset + i`:
+1. `index = ScrollOffset + i`; if `list[index]` is nil, hide that row instead of creating anything.
+2. Thumb height = `trackH * min(1, visible / max(1, total))`; thumb Y = `trackY + (offset / maxScroll) * (trackH - thumbH)`.
+3. Clicking the track: `offset = floor((relY / trackH) * maxScroll + 0.5)`. Up/down buttons step by 1.
+
+- Only ever mutate `Position` / `Size` / `Text` / `Color` / `Visible` in the draw loop.
+- Recompute `maxScroll = max(0, total - visible)` whenever the filter changes, and reset `offset` to 0 with it - otherwise a search that shrinks the list leaves the view scrolled past the end and renders blank.
+- Reuse one row object for "hover" and "selected" states rather than drawing an extra highlight.
+
+Third-party sample (2026-10-30): Arsenal Melee Changer, 13 visible rows at 18 px. UNVERIFIED, same caveat.
+
+## Separate the cosmetic value from the functional one
+When a game uses one value for both appearance and behaviour, a cosmetic change can silently break the mechanic. Arsenal does this: equipping a custom melee skin stops hits registering, because the swing logic keys off the melee name.
+The fix is not to give up the cosmetic; it is to swap the functional value in for the action and put the cosmetic one back afterwards:
+1. Read which item is actually in use (the HUD text here, not the Value you wrote).
+2. If it is the functional one, do nothing.
+3. If it is a skin, write the functional default, wait out the action window, then restore the skin.
+4. Guard the whole swap with a debounce flag so it cannot re-enter itself while the timer is pending.
+
+- The read-back in step 1 is what makes this safe. Trusting your own last write instead would have the script fighting the game.
+
+Third-party sample (2026-10-30): Arsenal Melee Changer's "SwingFix", `wait(0.42)` for the swing window, HUD path `GUI_Interface.Vitals.Ammo.Gun.Text`. UNVERIFIED - 0.42 s is the author's number and exactly the kind of constant that has to be re-measured against the game rather than copied.
