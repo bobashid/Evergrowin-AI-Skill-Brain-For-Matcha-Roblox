@@ -6,7 +6,7 @@ Read this first, then `SKILL.md`, then everything in `learned/`, then the parts 
 
 | Repo | Holds | Never holds |
 |---|---|---|
-| `bobashid/Evergrowin-AI-Skill-Brain-For-Matcha-Roblox` (this repo) | The skill: `INDEX.md`, `SKILL.md`, `BOOTSTRAP.md`, `learned/`, the reference parts | Game scripts, `Hub`, loaders |
+| `bobashid/Evergrowin-AI-Skill-Brain-For-Matcha-Roblox` (this repo) | The skill: `INDEX.md`, `SKILL.md`, `BOOTSTRAP.md`, `learned/`, the reference parts, `games/` | Game scripts, `Hub`, loaders |
 | `bobashid/roblox-matcha` | Game scripts and `Hub` — the files the user loads | Skill notes, `Hub` entries |
 
 Scripts are pushed to `roblox-matcha`. What gets learned is written here. Nothing here ever gets a loader or a `Hub` entry, and nothing there is ever treated as a skill file.
@@ -15,6 +15,7 @@ Scripts are pushed to `roblox-matcha`. What gets learned is written here. Nothin
 
 - `BOOTSTRAP.md` is the canonical bootstrap. Atomic Chat's skill settings hold only a **pointer** to it, so the settings text never needs editing again.
 - `learned/` is a real folder and the growth target: `api-facts.md`, `errors.md`, `patterns.md`, `dump-protocol.md`, `working-style.md`, `corrections.md`, `unverified.md`, `community-remotes.md`. New facts go here first.
+- `games/` holds one note per game worked on. Existing notes: `Piano Rhythm Tiles.md`, `The Strongest Battlegrounds.md`.
 - The reference parts sit flat at the repo root under their bare names (`failure-protocols.md`, `hub-sync.md`, `api-memory.md`, ...). `SKILL.md` calls them `parts/api-*`; the actual path is the bare root name. Moving them into `parts/` must be done via GitHub's web rename and `INDEX.md` updated in the same commit; re-uploading them risks silent corruption.
 - `_TEMPLATE.md` is the game-note template. Copy it to `games/<Game Name>.md` when a game gets worked on.
 - `matcha-npc-cfg.md` holds the Matcha NPC/bot JSON config schema, the entry template, the `match_mode` table, and the pre-delivery validation checklist. Read it before generating or editing any NPC/bot config.
@@ -40,6 +41,7 @@ Scripts are pushed to `roblox-matcha`. What gets learned is written here. Nothin
 | A remote-based exploit for a game not yet worked on (infinite money, free gamepass, reward spam) | `learned/community-remotes.md` first, then verify with a probe; a lead is not a fact |
 | Deciding how much to read, or whether an update can be skipped | `learned/working-style.md` |
 | The user is about to paste game code, or I am missing a name | `learned/dump-protocol.md` |
+| A third-party script or a `WorldToScreen` / targeting / key-hold question | `learned/patterns.md` (idempotent key setter, screen-space ring), `learned/unverified.md` (`WorldToScreen` signature) |
 | Building or fixing a menu, keybinds, input | `pattern-ui-input.md`, `playbooks-and-delivery-reference.md` |
 | ESP, drawing, remotes, loops, saving config, anti-AFK | `pattern-render-remotes-loops.md` |
 | Deciding whether Matcha already has a feature; style, intake questions | `builtins-and-style.md` |
