@@ -11,59 +11,60 @@ Place id **119048529960596**. `game.Name` reports **`Ugc`**, so Hub pins this pl
 - v6.8.0: seating + tray pickup - "nice everything functional".
 - v6.8.0 is the user's baseline: "this was the most functional do a roll back just fix the
   handing out food problem" (2026-10-31).
-- v6.9.0 (pickup-then-re-read): **pickup works, hand-out still does not** - user: "it picks
-  them up well but not giving" (2026-10-31). This is what killed the read-order theory.
+- **v6.8.0/6.9.0 serve DOES hand out food** - "that version i said that worked did work, just
+  tweak it so it works all the time" (2026-10-31). See the correction note below.
+- v6.11.0 (2026-10-31): 6.9.0 serve path with a dedicated call budget and multi-guest retry.
+  Pushed and read back; **not yet confirmed in game**.
 
-## THE DECOMPILE THAT SETTLES IT (2026-10-31) - serve is not a remote at all
+## SERVE: `TaskCompleted 'Serve'` WORKS - do not "fix" it again (2026-10-31)
 
-Two modules decompiled live this session. Read both before touching serve again.
+This is the correction of record for this game. Twice now I have declared the serve path
+impossible from source reading and been wrong.
 
-### `Source.Systems.Restaurant.GrabFood.AttemptGrab(tycoon, foodModel)`
+**What the decompile does and does not prove.** `Source.Systems.Restaurant.GrabFood.AttemptGrab`
+fills its local `Storage` from `Events.Restaurant.GrabFood:InvokeServer(model)`'s return, and
+`Source.Systems.Restaurant.Tasks` fires serving from `Tasks:HandleInput` via a real
+`UserInputService` MouseButton1 raycast. That is how the **game's own client** does it. It does
+**not** prove the server rejects a `TaskCompleted` call named `'Serve'` - and it does not, as
+the user's live report shows.
 
-    if not p32:GetAttribute("Taken") then
-        local v34 = p32.Name                        -- FoodKey IS the model's Name
-        local v35, v36 = Events.Restaurant.GrabFood:InvokeServer(p32)
-        if v35 then
-            table.insert(Storage, { Model = p32, FoodKey = v34, Tycoon = p31,
-                TargetPlayerName = v36.TargetPlayerName,
-                TargetCarId      = v36.TargetCarId,
-                KidFlag          = v36.KidFlag })
-            ... Tasks:SetTask({ Name = Task.Serve, Tycoon = p31 })
+**Rule for this game:** `TaskCompleted 'Serve'` with `FoodModel` + `GroupId` + `CustomerId` is
+accepted. Keep it. Never replace it with a camera-click route on the strength of source reading.
 
-and `IsHoldingFoodForNPC(foodKey, kidFlag)` accepts an entry only when
-`FoodKey == order` and the target fields match. Consequences:
+**Why it was intermittent, and the actual fix (v6.11.0):**
 
-- **The tray and the target come from the server's `GrabFood:InvokeServer` return.** No script
-  can write that list, so no payload we build can ever be "held".
-- `TaskCompleted 'Serve'` is not a serve call. **This is why 6.4.0-7.1.0 and 6.9.0 all picked up
-  fine and handed out nothing.** The payload was never the problem, and there is no payload fix.
-- `Objects.Food` children are the plates; the grabbed ones carry a `Taken` attribute. Tray count
-  = children with `Taken == true`. Do not count them as "food on counter".
+1. Serve shared **one** token bucket (8 calls / 0.5 s) with bills, dishes, orders and seating.
+   A busy kitchen starved the serve calls. Serve now has its own bucket (`ServeBudget = 10`).
+2. Each dish got **exactly one** guest attempt, then an 8 s park. Now each dish is retried on up
+   to `GuestTriesPerDish = 3` different guests, and the cooldown is keyed per **dish+guest pair**
+   (3 s), so one refusal does not block a dish against everybody else. A dish that fails every
+   try is parked only 3 s.
+3. Cadence: `ServeEvery` 1.2 -> 0.7, `ServeGap` 0.12 -> 0.1, `MaxServesPerPass` 6.
+4. Tray-aware: if `Objects.Food` children carry a `Taken` attribute, only those are served;
+   otherwise every plate is tried. Pickup only fires when nothing is held.
 
-### `Source.Systems.Restaurant.Tasks`
+Nothing about the payload changed - the payload was correct in 6.8.0.
 
-- Serving fires `Tasks.TaskInputReceived`, which is fired **only** by
-  `Tasks:HandleInput(part, position)`.
-- `HandleInput` is reached from `OnInputBegan` (a real `UserInputService.InputBegan`
-  MouseButton1/Touch raycast, excluded against the character, CollisionGroup `Tasks`) or from
-  `OnSpeechBubbleClicked`.
-- `HandleInput` rejects a target when `dx^2 + dz^2 > 1024` or `|dy| > 32` relative to the
-  player's `HumanoidRootPart`, and has a 0.25 s debounce.
-- `HandleInput` then classifies the hit instance: player / customer (`GetCustomer`) / food /
-  furniture / car, and fires `TaskInputReceived` with the matching ids. For a customer it passes
-  `GroupId`, `CustomerId`, `Tycoon` straight from the instance tree - we never supply them.
+## `GrabFood` internals (still useful, decompiled 2026-10-31)
 
-**So the only working serve route is: grab via `fireproximityprompt`, then aim the camera at a
-customer and click.** That is what v6.10.0 does.
+- `AttemptGrab` marks a plate `Taken`, calls `GrabFood:InvokeServer(model)`, pushes
+  `{Model, FoodKey = model.Name, Tycoon, TargetPlayerName, TargetCarId, KidFlag}` onto
+  `Storage`, then `Tasks:SetTask({Name = Task.Serve})`.
+- `IsHoldingFoodForNPC(foodKey, kidFlag)` compares `FoodKey == order` - so the customer's order
+  is that plate's **model Name** (`food 13`, `food 2`, `food 10` were the live names).
+- Hold capacity = `WaiterCart and 4 or WaiterTray and 3 or 1`. A fresh account holds **one**
+  plate, which alone can look like "serve is broken" when the second dish never leaves.
+- `Objects.Food` children are the plates; grabbed ones carry `Taken`.
+- The bottom bar text ("Serve Chicken Nuggets to a customer" + Cancel) is
+  `GrabFood:UpdateTaskBottomBar` - seeing it means the grab succeeded.
 
 ## `require` and `getgc` cannot reach these modules (probed 2026-10-31)
 
     GF require ok=false   SF require ok=false   Tasks require ok=false
 
-`require(PlayerScripts.Source...GrabFood)` fails (matches `api-memory.md`: require cannot load
-instances), so `Storage` cannot be read or written from a script. And
-`getgc('TaskInputReceived')` returns 12 entries whose values are strings while `getgc()` with no
-key returns **0** entries in this VM, so the Signal cannot be fired directly. Both routes dead.
+`require(PlayerScripts.Source...GrabFood)` fails (matches `api-memory.md`), so `Storage` cannot
+be read from a script. `getgc('TaskInputReceived')` returns 12 entries whose values are strings
+while `getgc()` with no key returns **0** entries in this VM. Do not build on either.
 
 ## The serve chain in full (decompile-confirmed)
 
@@ -74,10 +75,7 @@ key returns **0** entries in this VM, so the Signal cannot be fired directly. Bo
    the task is `Serve` and `Key == "Cook"`; it also has a 0.5 s debounce.
 3. `GrabFood` on the LOCAL `Interacted` signal, `Key == "Serve"`: iterates `Objects.Food`
    children without `Taken`, keeps those with `|dx| + |dz| < 4` of the prompt's model pivot, then
-   `AttemptGrab` each. Hold capacity `WaiterCart and 4 or WaiterTray and 3 or 1`.
-4. Serving: `ServeFood` on `TaskInputReceived` requires `CurrentTask.Name == Serve`, then
-   `CompleteForNPC` checks the customer is `WaitingForDish` **and**
-   `IsHoldingFoodForNPC(order, isKid)` - i.e. `FoodKey == order`.
+   `AttemptGrab` each.
 
 ## Counters are `K<n>`, tables are `T<n>` - never mix them (Confirmed by log)
 
@@ -100,11 +98,12 @@ found **5** prompts there while a tray was held.
 
 The id is not stable (`140`, `172`, `176` seen). Never hardcode it.
 
-## Guests accept the WRONG order - user-stated, but the code disagrees
+## Guests and orders - treat matching as required (decompile)
 
-User: "they dont care if you give them the wrong order btw". `ServeFood.CompleteForNPC` calls
-`GrabFood:IsHoldingFoodForNPC(order, isKid)` which compares `FoodKey == order`. With the
-decompile in hand, treat order matching as **required**.
+`ServeFood.CompleteForNPC` calls `GrabFood:IsHoldingFoodForNPC(order, isKid)`, which compares
+`FoodKey == order`. The user says wrong orders are accepted; the code says the plate's Name must
+equal the order. v6.11.0 therefore retries a dish on several guests instead of assuming either
+way - one of the two is right and the retry covers both.
 
 ## Call shapes DIFFER per action - never assume uniformity
 
@@ -115,7 +114,7 @@ decompile in hand, treat order matching as **required**.
 | Collect tips | `TipsCollected` only (1) | the tycoon itself |
 | Take order | `TaskCompleted` only (1) | `GroupId` + `CustomerId`, both STRINGS |
 | Seat a guest | `TaskCompleted` only (1) | `FurnitureModel` = a `T<n>` table, `GroupId` (string) |
-| Serve food | **no remote exists** - grab prompt, then aim + mouse click | - |
+| Serve food | `fireproximityprompt` (tray) THEN `TaskCompleted 'Serve'` per dish | `FoodModel`, `GroupId`, `CustomerId` |
 
 ## Seating: the guest prompt fires NOTHING (User-stated)
 
@@ -141,8 +140,8 @@ ClickableFurnitureInteractedClient`. Resolve `Interacted` **inside** it.
     DeliveryActionReplicated, DeliveryCancelRequested, MopedSpawnRequested, MopedChanged,
     MopedHornRequested
 
-`CancelGrabRequested` is the game's own "Cancel" button - use it to unstick a held tray, and do
-not spam it (it clears `Storage` and resets the task).
+`CancelGrabRequested` is the game's own "Cancel" button - it clears `Storage` and resets the
+task. Use it to unstick a held tray; do not spam it.
 
 ## Guest source: `Tycoon.ClientCustomers`
 
@@ -151,10 +150,10 @@ with `tonumber()`; it silently dropped every customer in v4.1.1. Empty is normal
 
 **Customers carry NO attributes** (probed 2026-10-31: group 87 and group 89 both had zero
 attributes, and the customer models have zero too). Their order / state is NOT readable from the
-instance tree; it lives in the server-side `Customers` module. Position must be read from
-`HumanoidRootPart` (or `Head`) `Position`, not from attributes.
+instance tree; it lives in the server-side `Customers` module. Position must come from the
+`HumanoidRootPart` / `Head` part, not from attributes.
 
-## The real cause of "slow": one attempt per pass (User-diagnosed 2026-10-27)
+## The real cause of "slow" and "only sometimes": one attempt per pass (User-diagnosed)
 
 "you try the task once, you need to spam them on different objectives to make it faster".
 One rejected target cost a whole cooldown window. Fix = try many targets per pass, and give the
@@ -182,20 +181,11 @@ heaviest feature its **own** call budget (a single shared bucket starves it).
 9. Seating on any `Items.Surface` child puts groups on kitchen counters.
 10. One attempt per pass + a long cooldown = 3-7 s stalls.
 11. **Firing `Interacted:FireServer` alone never fills `GrabFood.Storage`** - the grab happens
-    on the LOCAL signal inside `Interact`.
+    on the LOCAL signal inside `Interact`. This one is genuine; it is about the *grab*, not the
+    serve.
 12. **`getgc` cannot reach `TaskInputReceived`**, and `require` cannot load the modules.
-13. Reading `Objects.Food` before the grab (v6.8.0) or after it (v6.9.0) - **neither matters**,
-    because `TaskCompleted 'Serve'` is not a serve call at all.
-
-## Still unknown
-
-1. Whether Matcha's `mouse1click` reaches `UserInputService.InputBegan` while the Roblox window
-   is focused. v6.10.0's Report prints `rbxActive`, `clicks`, `inRange` and the tray count so the
-   next message can be a diagnosis.
-2. Whether `CFrame.lookAt` exists in this VM (v6.10.0 tries `lookAt`, then `CFrame.new(eye,pos)`,
-   and prints `aimMode`).
-3. Whether the click raycast (CollisionGroup `Tasks`, character excluded) hits the customer model
-   or the table in front of it.
+13. Camera-aim + `mouse1click` serve (v6.10.0) - the user discarded it and it was never needed;
+    `TaskCompleted 'Serve'` works. Do not build this again.
 
 ## Script versions
 
@@ -204,11 +194,11 @@ heaviest feature its **own** call budget (a single shared bucket starves it).
 - v6.0.0: auto money. **Crashed the user's game.**
 - v6.0.1: Interactions folder, ClassName parts, call rate. **WORKING** bills + tips.
 - v6.1.0: + dishes. **WORKING.** v6.2.0: + orders. **WORKING.**
-- v6.8.0: seat only `^T%d+$`, tray pickup without text filter. **WORKING - the baseline.**
-- v6.9.0: 6.8.0 + pickup-then-re-read. Pickup fine, **hand-out still broken** (user).
-- v6.10.0 (2026-10-31): serve replaced by the game's own path - `fireproximityprompt` grab, then
-  camera aim + `mouse1click` per in-range customer, tray count watched via the `Taken`
-  attribute. `TaskCompleted 'Serve'` removed entirely. Pushed and read back; **not yet
-  confirmed in game**.
-- v7.1.0 / v8.0.0: multi-target per pass, split budgets, click-serve. **Discarded** by the user
-  on 2026-10-31 in favour of the 6.8.0 line.
+- v6.8.0: seat only `^T%d+$`, tray pickup without text filter. **WORKING - the baseline**, and
+  it does hand out food.
+- v6.9.0: 6.8.0 + pickup-then-re-read. Serve works but only intermittently.
+- v6.10.0: click-path serve. **Discarded** - replaced a working call with a guess.
+- v6.11.0 (2026-10-31): serve keeps the `TaskCompleted 'Serve'` call, gets its own call budget,
+  retries each dish on up to 3 guests, per-pair 3 s cooldown, faster cadence. Pushed and read
+  back; **not yet confirmed in game**.
+- v7.1.0 / v8.0.0: multi-target per pass, split budgets, click-serve. **Discarded** by the user.
