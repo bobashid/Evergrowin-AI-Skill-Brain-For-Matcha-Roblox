@@ -3,104 +3,100 @@
 Place id **119048529960596**. `game.Name` reports **`Ugc`**, so Hub pins this place in `PLACES`
 (done, Hub v3.0). Script: `Restaurant Tycoon 3` in `bobashid/roblox-matcha`.
 
-## Two dead ends found by probing the live game (Confirmed 2026-10-27)
+## CONFIRMED WORKING: v6.0.1 money collection (User-stated 2026-10-27)
 
-1. **`PlayerGui.CustomerSpeechUI.Adornee` reads NIL in this VM.** Probed 3 speech UIs: all
-   returned `adornee=nil`, `Header.Text=nil`. The reference script derives customer ids from
-   `Adornee`, so that whole path is unusable here. Use
-   **`Tycoon.ClientCustomers`** instead: group **folder name = `GroupId`**, child **model name =
-   `CustomerId`** (proven live: `Folder "14" -> Model "1", Model "2"`).
-2. **A `HumanoidRootPart` reports `ClassName == 'Model'`** in this VM. Any "walk up until you
-   find a Model" helper stops on the root part and returns the wrong instance - that is why the
-   first Adornee-based attempt produced `groupId = "2"`.
+User: "nice everything there works" after v6.0.1. The bill collector and tips collector are
+proven in a live game. v6.1.0 keeps every one of those fixes and adds dish pickup on top.
 
-## Why "everything looks on but nothing happens" (Confirmed 2026-10-27)
+**The bill call is genuinely TWO calls** - the earlier "no Interactions call is required" line
+in this note was wrong and is superseded:
 
-A live probe of an idle session returned:
+1. `Events.Restaurant.Interactions.Interacted:FireServer(tycoon, {Id="1", ActionText="",
+   WorldPosition=<part pos>, GamepadKeyCode=1000, TemporaryPart=Part, KeyboardKeyCode=101,
+   Range=7.2, IsCustomerPrompt=true, Key="CollectBill", Model=<Items.Surface.T?>, Part=Part,
+   Prompt=1, InteractionType="CollectBill", HoldDuration=0})`
+2. `Events.Restaurant.TaskCompleted:FireServer({Tycoon=tycoon, Name="CollectBill",
+   FurnitureModel=<same Items.Surface model>})`
 
-    Surface = 10 tables   bills = 0   trash = 0   dishes = 0   TaskCompleted = RemoteEvent
+**`Interactions` is a FOLDER, not a remote.** Probed live: `X2 inter Folder`, and its children
+include `RemoteEvent Interacted`, `InteractionCreated`, `InteractionDestroyed`,
+`AllInteractionsDestroyed`, `ClickableFurnitureInteracted`, plus a BindableEvent
+`ClickableFurnitureInteractedClient`. `Interacted` must be resolved **inside** that folder.
+Firing the Folder itself (`Folder:FireServer`) throws inside pcall and is swallowed - that was
+the v6.0.0 defect and the likely crash path.
 
-So the collect loops were firing at **empty lists** every tick. Nothing errored, nothing printed,
-and no toggle appeared broken. Any "collect" feature can only work once a customer sits, eats
-and leaves a `Bill` / `Trash` behind.
+**Tips is ONE call:** `Events.Restaurant.TipsCollected:FireServer(tycoon)`.
 
-Also settled in that probe: `TaskCompleted` is a plain **`RemoteEvent`** (one child, index 3).
-An earlier read that showed `UnreplicatedEvent` alongside it was a garbled response, not real.
+**Dishes is ONE call** (user-captured 2026-10-27):
+`TaskCompleted:FireServer({Tycoon=tycoon, Name="CollectDishes", FurnitureModel=Items.Surface.T19})`
+- no `Interacted` partner. Target is the `Items.Surface` model holding a **`Trash`** child.
 
-## Corrections from the working reference script (User-supplied 2026-10-27)
+So the shape differs per action - do not assume uniformity:
 
-1. **NO `Interactions.Interacted` call is required.** Every automation is a single
-   `TaskCompleted:FireServer({...})`. The "two-call" theory was wrong.
-2. **Dirty dishes are `Name = 'CollectDishes'`** on an `Items.Surface` child holding a `Trash`
-   child. NOT `GrabFood` on `Objects.Food`.
-3. **Bills are `Name = 'CollectBill'`** on an `Items.Surface` child holding a `Bill` child.
-4. **Serve reads its target from the food model itself** (`CustomerId` / `GroupId` attribute or
-   Value child), falling back to the customer list.
-
-## `TaskCompleted` task names (Confirmed from reference, 2026-10-27)
-
-| Name | Payload | Notes |
+| Action | Calls | Target child on `Items.Surface` |
 |---|---|---|
-| `SendToTable` | `FurnitureModel` = Surface table, `GroupId` | seat a waiting customer |
-| `CollectBill` | `FurnitureModel` = Surface table with a `Bill` child | money from table |
-| `CollectDishes` | `FurnitureModel` = Surface table with a `Trash` child | dirty dishes |
-| `TakeOrder` | `GroupId`, `CustomerId` | plus the CustomerActionReplicated call |
-| `Serve` | `FoodModel`, `CustomerId`, `GroupId` | NPC table service |
-| `Serve` | `FoodModel`, `CarId` | drive-thru variant |
-| `CollectDriveThruBill` | `CarId` | drive-thru money |
+| Collect bill | `Interacted` THEN `TaskCompleted` | `Bill` |
+| Collect dishes | `TaskCompleted` only | `Trash` |
+| Collect tips | `TipsCollected` only | n/a (arg is the tycoon) |
 
-`GroupId` and `CustomerId` are **strings** (the captured seat payload used `GroupId = "19"`).
+## Crash post-mortem: v6.0.0 (2026-10-27)
 
-## Other remotes (Confirmed from reference, 2026-10-27)
+v6.0.0 crashed the game. It had four defects, all removed in v6.0.1, which then worked:
 
-| Remote | Call |
-|---|---|
-| `Restaurant.TipsCollected` | `FireServer(tycoon)` - the one feature that always worked |
-| `Restaurant.CustomerActionReplicated` | `FireServer(tycoon, 'SetCustomerState', customerId, groupId, 'WaitingForDish')` - **positional** |
-| `Restaurant.GrabFood` | `InvokeServer(foodModel)` |
-| `Cook.CookInputRequested` | `FireServer('Interact', workspace, 'Oven')` |
-| `Restaurant.GetRudeCustomerDialog` | `InvokeServer(tycoon, customerId, groupId)`, then again with the apology text, then `Dialog.DialogCompleted:FireServer()` |
-| `Teleports.TeleportRequestedClient` | `Fire('Tycoon' / 'Plaza' / 'EKEA' / 'Campsite' / 'Farm')` |
-| `Restaurant.RestaurantStatusUpdated` | `FireServer(tycoon, 'Open' / 'Closed' / 'Empty')` |
-| `Rewards.RewardRequested` | `FireServer('Obejctives')` - the typo is in the game |
-| `Shop.CodeSubmitted` | `FireServer('dineanddash')`, `FireServer('UltraWats')` |
-| `Food.PurchaseIngredientRequested` | `FireServer(tycoon, ingredient, shopName)` |
-| `Upgrades.UnlockUpgradeRequested` | `FireServer(tycoon, upgradeName)` - **excluded by user instruction** |
+1. `remote('Restaurant','Interactions')` returned the **Folder**, and `Folder:FireServer(...)`
+   was attempted - the first bill call never fired.
+2. `FindFirstChildWhichIsA('BasePart', true)` used for part lookup. `IsA` always returns true in
+   this VM, so it can return a non-part; sending a Model where a `Part` is expected is a
+   plausible crash trigger. **Find parts by `ClassName` only** (`Part`/`MeshPart`/
+   `UnionOperation`/`WedgePart`), and skip the target if none is found.
+3. **No rate limit** - up to 12 bills x 2 calls every 0.25 s. v6.0.1 added a token bucket
+   (8 calls per 0.5 s) and one target per feature per pass.
+4. `task.wait` inside the collect loop. Removed; the loop yields only between passes.
 
-## Table selection (Confirmed from reference)
+Rule for this game: never fire more than one collect target per pass, and never exceed a
+handful of calls per half second. It has crashed once already.
 
-A `Items.Surface` child is free when it has **no `Bill`**, **no `Trash`**, none of the attributes
-`Occupied` / `IsOccupied` / `InUse` / `Taken`, and no `Seat` descendant with an `Occupant`.
-Table names match `^T%d+$`.
+## Live probe facts (Confirmed 2026-10-27)
 
-## Facts carried over from my own probes
+- `V3 bills 0 trash 5` - five `Trash` surfaces existed at probe time, so dish collection had
+  targets. Bills come and go with customers; `trash`/`bills` reading 0 is normal when idle.
+- `Z2 Interacted RemoteEvent`, `X4 hasInteracted true`, `X5 tc RemoteEvent`.
+- `Y3 bills 1 T19`, `Y4 partsInFirstBillTable 7` - a billed table has real BaseParts under it,
+  so a ClassName part lookup succeeds on real targets.
+- Ownership: `workspace.Tycoons` children, `ObjectValue` whose `Value` is the LocalPlayer.
+- Currency: `leaderstats` -> `IntValue` named `💸 Cash`; rises on its own, so a rising balance
+  is not evidence a script worked.
+- `TaskCompleted` is a plain `RemoteEvent` (one child). An earlier read showing
+  `UnreplicatedEvent` was a garbled response.
 
-- Ownership: `workspace.Tycoons` children, `ObjectValue` (`Owner` or `Player`) whose `Value` is
-  the LocalPlayer. 8 tycoons, exactly one matches.
-- Currency: `leaderstats` -> `IntValue` named `💸 Cash`; it rises on its own (passive income), so
-  a rising balance is not evidence a script worked.
-- Plot interactables: 9 total (1 `DoorPrompt`, 8 `SeatPrompt`). `Dialog` prompts in plot: **0**.
-- Money drops: `workspace.DropFolder`; the reference teleports the HumanoidRootPart to each drop
-  and back.
-- `getgc('Serve')` returns 27 entries including `'Serve'`, `'Name'`, `'Key'`,
-  `'IsHoldingFoodForNPC'`. A single `n=0` from `getgc` is a failed call, not proof of absence.
+## Dead ends (do not retry)
 
-## Script versions
-
-- v1.0.0 keyword prompt scan: no-op. v2.0.0/2.0.1 Dialog serve: fired world NPC dialogue.
-- v3.0-v3.3 SeatPrompt misunderstanding, removed. v3.4 served the wrong dish.
-- v3.5.0 held-dish tracking. v3.6.x seat via `SendToTable`.
-- v3.7.0/3.7.1 wrongly added an `Interactions.Interacted` call and a range gate.
-- v4.0.0: ported from the reference. **Died at load**: `Cannot use '...' outside of a vararg
-  function` (a `...` inside a nested closure in `fire()`), so nothing ran.
-- v4.0.1: fixed the vararg parse error with `packArgs` + `unpackFn(a, 1, a.n)`.
-- v4.1.0: diagnostic build. `AutoRun` off by default, per-action OK/FAIL, remote class dump.
-- v4.1.1: customers read from `ClientCustomers` (Adornee is nil), seat tries up to 4 free
-  tables, counters only increment on a successful fire.
+1. **`PlayerGui.CustomerSpeechUI.Adornee` reads NIL** in this VM (`adornee=nil`, `Header.Text=nil`
+   on all 3 probes). The reference script derives customer ids from it; unusable here.
+2. **A `HumanoidRootPart` reports `ClassName == 'Model'`.** Any "walk up until you find a Model"
+   helper stops on the root part and returns the wrong instance.
+3. **`Tycoon.ClientCustomers` is often empty** (`cust=0` across many probes, 0 groups when
+   checked). Do not build on it as a live guest source without re-probing.
+4. Dishes on the counter carry **no `CustomerId`/`GroupId`** - only `EatMethod`, `Taken`,
+   `Part:Head`, `UnionOperation:TestNewPlate`, `Model:Contents`. Serve cannot read its target
+   from the dish.
+5. `findTycon and nil or findTycoon()` - malformed, fixed in v3.6.1.
 
 ## Still unknown
 
-1. Whether `SendToTable` needs the customer to be in a specific state first.
-2. The music track names the server accepts.
-3. Whether `TeleportRequestedClient` is a BindableEvent (`:Fire`) or a remote (`:FireServer`) -
-   v4.1.x calls both inside pcall.
+1. How to serve food to the right guest (customers are not reliably visible in any probed
+   source; see dead ends 1 and 3).
+2. `SendToTable` / `TakeOrder` were never confirmed working in a live game.
+3. Whether `TeleportRequestedClient` is a BindableEvent (`:Fire`) or a remote (`:FireServer`).
+
+## Script versions
+
+- v1.0.0 keyword scan: no-op. v2.x Dialog serve: fired world NPC dialogue.
+- v3.x: SeatPrompt / held-dish / SendToTable attempts, none confirmed.
+- v4.0.0: **died at load** - `Cannot use '...' outside of a vararg function` (a `...` inside a
+  nested closure in `fire()`). Fixed in v4.0.1 with `packArgs` + `unpackFn(a, 1, a.n)`.
+- v4.1.x / v5.x: diagnostics and auto-serve attempts; none worked (customers never found).
+- v6.0.0: auto money. **Crashed the user's game.**
+- v6.0.1: fixed the Interactions folder, ClassName part lookup, and call rate. **CONFIRMED
+  WORKING** - bills + tips.
+- v6.1.0: adds auto dish pickup (`CollectDishes`, single call) alongside bills and tips.
