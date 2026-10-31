@@ -2,6 +2,31 @@
 
 Short, reusable, proven in a real game. Format: name, when to use, 3 to 10 lines of code or steps, proof and date. A pattern used everywhere moves into the matching reference file.
 
+## `FireServer` returning true does not mean the server accepted it
+
+`pcall(function() remote:FireServer(payload) end)` returns true when the call was **sent**. A
+RemoteEvent almost never raises, so a boolean from `fire()` is a statement about the network
+write, not about the server's decision. Any loop that treats that boolean as "it worked" stops
+retrying on the first blind attempt and then looks like it "works only sometimes, and slowly".
+
+1. Never use the `fire()` return value as a success test for a state-changing action.
+2. Pick a **world-state witness**: the item disappeared from the folder, the label changed, the
+   value incremented, the model was reparented. Read it after a short wait.
+3. Loop until the witness fires or the attempt budget is spent; then retry on a different
+   target rather than the same one.
+
+- Symptom to recognise: "it works, but not every time" plus "it feels slow" - one blind attempt
+  per pass, each pass aimed at a different target by rotation.
+- Cost of getting it wrong is invisible: the guard is already true, so the retry count in the
+  config is never actually used.
+
+Confirmed (2026-10-31) in Restaurant Tycoon 3: `TaskCompleted 'Serve'` was accepted by the
+server all along, but v6.11.0's `if ok then landed = true` made the multi-guest retry dead code,
+so a refusal looked identical to a success. v6.12.0 tests `dish:IsDescendantOf(tycoon.Objects.Food)`
+instead and treats the plate leaving the tray as the only proof. User reports either side of the
+change: "that version did work, just tweak it so it works all the time" then "felt like it took
+forever to give the food or like it never even gave it out".
+
 ## Fire the game's own interaction instead of writing properties
 Use when a game grants something through a ProximityPrompt, ClickDetector or touch. The game's own handler does the work, so it survives updates and does not desync state the way attribute writes do.
 1. Find the prompt: scan `GetDescendants()` for `ClassName == 'ProximityPrompt'` plus the expected name.
