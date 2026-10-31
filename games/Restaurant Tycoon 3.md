@@ -9,6 +9,8 @@ Place id **119048529960596**. `game.Name` reports **`Ugc`**, so Hub pins this pl
 - v6.1.0: dishes - "nice everything works the auto dish pickup and cash+tips".
 - v6.2.0: orders - "nice everything worked once again".
 - v6.8.0: seating + tray pickup - "nice everything functional".
+- v6.8.0 is the user's baseline: "this was the most functional do a roll back just fix the
+  handing out food problem" (2026-10-31). Everything after 6.8.0 was discarded.
 
 ## WHY SERVE CANNOT BE DONE BY FIRING REMOTES (decompile-confirmed 2026-10-27)
 
@@ -30,6 +32,20 @@ puts food in `Storage` from that **local signal**. So:
   serve no matter how correct the payload was. **The payload was never the problem.**
 - `prompt.Triggered` -> `Interact` -> both calls. So **`fireproximityprompt` is the only route
   that updates local state**, because it goes through the game's own dispatcher.
+
+## Serve hand-out: read `Objects.Food` AFTER the grab (UNVERIFIED, 2026-10-31)
+
+v6.8.0 read `foodList(ty)` **before** firing the tray prompt and then handed out those models.
+The grab reparents/replaces what sits on the counter, so the models being served were the
+pre-pickup ones. v6.9.0 changes only this: grab -> `task.wait(0.15)` settle -> re-read
+`foodList` -> serve one dish per 0.12 s -> park a dish that fails twice for 8 s so one bad
+model cannot stall the loop. The Serve payload also carries `FoodName` and, when known, the
+group's seated table as `FurnitureModel` (extra keys are ignored if unused).
+
+UNVERIFIED: that the stale model list was the cause of the hand-out problem. Test that would
+confirm it: a live run whose log shows `served: ... N/M` with N > 0 and dishes visibly leaving
+the counter. If it still fails, the next suspect is `GrabFood:IsHoldingFoodForNPC` refusing the
+FoodKey/order pair (see the wrong-order note below), not the payload shape.
 
 ## The `getgc` route for serving is PROVEN DEAD (probed 2026-10-27)
 
@@ -68,7 +84,7 @@ So there is no way to reach the Tasks table or its Signal. Do not retry this.
 
 **Consequence:** automating serve means driving the client's own input path:
 `fireproximityprompt` to grab, then a camera-aim + mouse click per customer. That is what
-v8.0.0 does. Still UNVERIFIED in a live run.
+v8.0.0 does. Still UNVERIFIED in a live run, and the user discarded it in favour of 6.8.0.
 
 ## Counters are `K<n>`, tables are `T<n>` - never mix them (Confirmed by log)
 
@@ -105,7 +121,7 @@ treat order matching as **required** until proven otherwise.
 | Collect tips | `TipsCollected` only (1) | the tycoon itself |
 | Take order | `TaskCompleted` only (1) | `GroupId` + `CustomerId`, both STRINGS |
 | Seat a guest | `TaskCompleted` only (1) | `FurnitureModel` = a `T<n>` table, `GroupId` (string) |
-| Serve food | **not remotely fireable** - prompt grab then camera click | - |
+| Serve food | **not remotely fireable** - prompt grab then dish hand-off | - |
 
 ## Seating: the guest prompt fires NOTHING (User-stated)
 
@@ -157,12 +173,15 @@ heaviest feature its **own** call budget (a single shared bucket starves it).
 12. **`getgc` cannot reach `TaskInputReceived`.** `getgc('TaskInputReceived')` returns 12 entries
     whose values are strings; `getgc()` with no key returns 0 entries in this VM, so the Tasks
     table cannot be found. Firing the Signal from a script is impossible.
+13. Serving from a `foodList` snapshot taken **before** the grab (v6.8.0). Read it after.
 
 ## Still unknown
 
 1. Whether the camera-aim + click serve route actually lands (raycast filter, camera fight).
 2. Whether the server re-validates the same preconditions as the client `ServeFood` module.
 3. Whether `TeleportRequestedClient` is a BindableEvent (`:Fire`) or a remote (`:FireServer`).
+4. Whether re-reading `Objects.Food` after the grab is enough for a `TaskCompleted 'Serve'` to
+   be accepted (v6.9.0 test).
 
 ## Script versions
 
@@ -171,7 +190,8 @@ heaviest feature its **own** call budget (a single shared bucket starves it).
 - v6.0.0: auto money. **Crashed the user's game.**
 - v6.0.1: Interactions folder, ClassName parts, call rate. **WORKING** bills + tips.
 - v6.1.0: + dishes. **WORKING.** v6.2.0: + orders. **WORKING.**
-- v6.8.0: seat only `^T%d+$`, tray pickup without text filter. **WORKING.**
-- v7.1.0: multi-target per pass, split call budget, test buttons removed.
-- v8.0.0: serve via the game's own input path - `fireproximityprompt` to grab (fills Storage)
-  then camera-aim + `mouse1click` per customer, with `CancelGrabRequested` if nothing lands.
+- v6.8.0: seat only `^T%d+$`, tray pickup without text filter. **WORKING - the baseline.**
+- v7.1.0 / v8.0.0: multi-target per pass, split budgets, then serve via the game's own input
+  path. **Discarded** at the user's request on 2026-10-31.
+- v6.9.0 (2026-10-31): the 6.8.0 line plus the serve read-order fix. Pushed and read back;
+  **not yet confirmed in game**.
