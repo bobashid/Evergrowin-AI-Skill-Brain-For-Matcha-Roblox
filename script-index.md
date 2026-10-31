@@ -19,7 +19,7 @@ the same turn.** That is part of the push procedure, not an extra step.
 | `Merge Block Arena Weapons` | 76024476718474 (alt) | 7996 | `games/Merge Block Arena.md` |
 | `Piano Rhythm Tiles` | 101999883467300 | 15147 | `games/Piano Rhythm Tiles.md` |
 | `Realistic Home Defense` | 105527962898452 | 14208 | `games/Realistic Home Defense.md` |
-| `Restaurant Tycoon 3` | 119048529960596 | 32502 | `games/Restaurant Tycoon 3.md` |
+| `Restaurant Tycoon 3` | 119048529960596 | 32774 | `games/Restaurant Tycoon 3.md` |
 | `Chop A Forest` | 103363457515322 | 21785 | - |
 | `Clean Everything` | 140576663170542 | 17762 | - |
 | `Command An Army` | 101770480176177 | 75920 | - |
@@ -32,7 +32,7 @@ the same turn.** That is part of the push procedure, not an extra step.
 | `What If Disasters` | 109440485612336 | 40823 | - |
 | `+1 Upgrade Per Kill` | 113273588963037 | 27161 | - |
 | `Build And Kill Zombies` | 105011592530400 | 8355 | - |
-| `Hub` | n/a (loader) | 7106 | `hub-sync.md` |
+| `Hub` | n/a (loader) | 7281 | `hub-sync.md` |
 
 ## Notes on the table
 
