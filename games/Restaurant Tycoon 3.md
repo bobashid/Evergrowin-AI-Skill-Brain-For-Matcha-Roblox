@@ -15,8 +15,25 @@ Place id **119048529960596**. `game.Name` reports **`Ugc`**, so Hub pins this pl
   tweak it so it works all the time" (2026-10-31).
 - v6.11.0: pickup good, but "it felt like it took forever to give the food or like it never even
   gave it out". **That report was correct and it named the bug** - see below.
-- v6.12.0 (2026-10-31): serve acceptance read from the tray. Pushed and read back;
-  **not yet confirmed in game**.
+- v6.12.0 (2026-10-31): serve acceptance read from the tray. Pushed and read back.
+- v6.13.0 (2026-10-31): barista / cook prompts skipped. Pushed and read back (sha `b2931332`,
+  33,964 bytes). **Not yet confirmed in game.**
+
+## DO NOT DO THE BARISTA'S JOB (User-stated 2026-10-31)
+
+User: "dont do the baristas job". `workspace.Temp` holds **both** the group (tray) pickup prompt
+**and** the barista / cook station prompts, so firing `fireproximityprompt` on every prompt there
+made the script press the coffee / cook stations too. The decompiled `Interact` even branches on
+`Key == "Cook"`, confirming cook interactions ride the same path.
+
+v6.13.0 fix: `promptBlocked(p)` checks the prompt's own name and up to 3 ancestors against
+`BARISTA_WORDS` = barista, coffee, espresso, latte, cafe, brew, machine, cook, oven, grill, fryer,
+stove, soda, drink, cup. A match means the prompt is never fired and the name is logged in the
+Report as `skipped <name>~<word>`. Behind the `Skip Barista / Cook Prompts` toggle so a false
+positive can be turned off without editing code.
+
+**Rule: never fire every prompt in a shared folder blindly.** Filter by name first, and make the
+filter a toggle.
 
 ## SERVE: `TaskCompleted 'Serve'` WORKS - do not "fix" it again (2026-10-31)
 
@@ -60,6 +77,17 @@ stall bills/dishes/orders/seating, which was the "everything feels slow" part), 
 **exactly** the 6.8.0 one (`FoodName` and `FurnitureModel` were guesses added in 6.9.0/6.11.0 and
 are removed), and the fixed 0.7 s cadence became 0.15 s after a success / 0.4 s after a miss.
 
+## Why v6.8.0 felt slow - the four stacking causes (asked 2026-10-31)
+
+1. `foodList(ty)` was read **before** `pickupViaPrompt()`, so the loop served stale pre-grab
+   models and the `dish.Parent` guard failed silently.
+2. `serveToGuest` returned `fire()`'s pcall result, so `accepted` always equalled `fired` and the
+   log claimed "served 5/5" while nothing left the hands. No retry ever happened.
+3. One guest attempt per dish per pass, then `ServeEvery = 1.2` s. With 8 guests that is up to
+   ~10 s per plate just rotating onto the right guest.
+4. `MaxPerHalf = 8` was consumed by serve alone (3 prompts + 5 fires), starving bills, dishes,
+   orders and seating for that half-second.
+
 ## `GrabFood` internals (decompiled 2026-10-31)
 
 - `AttemptGrab` marks a plate `Taken`, calls `GrabFood:InvokeServer(model)`, pushes
@@ -101,8 +129,9 @@ Counters are only the pickup target (`^K%d+$`).
 ## There is NO per-dish pickup prompt - only the GROUP (tray) pickup
 
 User-stated: "there is no prompt for singular food pickup only group pickup". Remove any
-`ActionText` filter: `fireproximityprompt` on **every** `ProximityPrompt` under
-`workspace.Temp`. Probe 2026-10-31 found **5** prompts there while a tray was held.
+`ActionText` filter, but DO apply the barista/cook name filter (above). Probe 2026-10-31 found
+**5** prompts under `workspace.Temp` while a tray was held - that count is the reason a blind
+fire-everything loop was wrong.
 
 ## `Prompt` is an INDEX BY LIVE PROMPT ID (Confirmed by probe)
 
@@ -123,7 +152,7 @@ equal the order. v6.12.0 retries a dish on several guests, which covers both rea
 | Collect tips | `TipsCollected` only (1) | the tycoon itself |
 | Take order | `TaskCompleted` only (1) | `GroupId` + `CustomerId`, both STRINGS |
 | Seat a guest | `TaskCompleted` only (1) | `FurnitureModel` = a `T<n>` table, `GroupId` (string) |
-| Serve food | `fireproximityprompt` (tray) THEN `TaskCompleted 'Serve'` per dish | `FoodModel`, `Name`, `Tycoon`, `GroupId`, `CustomerId` - nothing else |
+| Serve food | `fireproximityprompt` (tray only) THEN `TaskCompleted 'Serve'` per dish | `FoodModel`, `Name`, `Tycoon`, `GroupId`, `CustomerId` - nothing else |
 
 ## Seating: the guest prompt fires NOTHING (User-stated)
 
@@ -192,8 +221,10 @@ shared bucket starves it). v6.12.0 also gives serve its own **thread**, not just
     on the LOCAL signal inside `Interact`. Genuine; it is about the *grab*, not the serve.
 12. **`getgc` cannot reach `TaskInputReceived`**, and `require` cannot load the modules.
 13. Camera-aim + `mouse1click` serve (v6.10.0) - discarded, never needed.
-14. Treating `fire()`'s pcall result as "the server accepted it" (v6.11.0) - this is the bug that
-    made every retry loop a no-op. Read the tray instead.
+14. Treating `fire()`'s pcall result as "the server accepted it" (v6.11.0) - the bug that made
+    every retry loop a no-op. Read the tray instead.
+15. **Firing every `ProximityPrompt` under `workspace.Temp`** (v6.8.0-v6.12.0) - that includes
+    the barista / cook stations, i.e. doing the NPC's job. Filter by name first.
 
 ## Script versions
 
@@ -202,12 +233,14 @@ shared bucket starves it). v6.12.0 also gives serve its own **thread**, not just
 - v6.0.0: auto money. **Crashed the user's game.**
 - v6.0.1: Interactions folder, ClassName parts, call rate. **WORKING** bills + tips.
 - v6.1.0: + dishes. **WORKING.** v6.2.0: + orders. **WORKING.**
-- v6.8.0: seat only `^T%d+$`, tray pickup without text filter. **WORKING - the baseline.**
+- v6.8.0: seat only `^T%d+$`, tray pickup without text filter. **WORKING - the baseline**, and
+  it does hand out food (but slowly, and it pressed barista prompts).
 - v6.9.0: 6.8.0 + pickup-then-re-read. Serve works but only intermittently.
 - v6.10.0: click-path serve. **Discarded** - replaced a working call with a guess.
 - v6.11.0: own call budget + 3 guest retries - but the retry loop was dead because `fire()`
   always returned true. User: "felt like it took forever... or like it never even gave it out".
-- v6.12.0 (2026-10-31): acceptance read from `Objects.Food` (plate leaving = accepted), up to 8
-  guest attempts per dish, own serve thread, exact 6.8.0 payload, 0.15 s after a hit.
+- v6.12.0: acceptance read from `Objects.Food` (plate leaving = accepted), up to 8 guest attempts
+  per dish, own serve thread, exact 6.8.0 payload, 0.15 s after a hit.
+- v6.13.0 (2026-10-31): + barista / cook prompt filter (`BARISTA_WORDS`, `promptBlocked`, toggle).
   Pushed and read back; **not yet confirmed in game**.
 - v7.1.0 / v8.0.0: multi-target per pass, split budgets, click-serve. **Discarded** by the user.
