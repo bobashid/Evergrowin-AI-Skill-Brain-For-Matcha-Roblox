@@ -21,15 +21,28 @@ dispatcher. It does **TWO** things, and the order matters:
     v_u_13:FireServer(p19, p20)            -- the remote we captured
 
 `GrabFood.Init` does `v_u_10.Interacted:Connect(function(tycoon, promptData) ... end)` and only
-actually puts food in `Storage` from that **local signal**. So:
+puts food in `Storage` from that **local signal**. So:
 
 - Firing `Interactions.Interacted:FireServer(tycoon, promptData)` from a script tells the SERVER
   something happened, but **never runs GrabFood**, so `Storage` stays empty.
 - With empty `Storage`, `IsHoldingFoodForNPC` returns nil, so `ServeFood.CompleteForNPC` returns
   false, and every `TaskCompleted 'Serve'` is refused. This is why v6.4.0-v7.1.0 all failed at
-  serve no matter how correct the payload was. The payload was never the problem.
+  serve no matter how correct the payload was. **The payload was never the problem.**
 - `prompt.Triggered` -> `Interact` -> both calls. So **`fireproximityprompt` is the only route
   that updates local state**, because it goes through the game's own dispatcher.
+
+## The `getgc` route for serving is PROVEN DEAD (probed 2026-10-27)
+
+Serving needs `Tasks.TaskInputReceived`, a Packets.Signal. Probe results:
+
+    K2 getgc('TaskInputReceived') ok=true n=12
+    K3 1 string "Player" / 2 string func(0x...) / 4 string "Connect" ...
+    K4 nonnil=12   (values are STRINGS, never the Signal object)
+    K5 getgc('HandleInput') n=6
+    K6 getgc('ServeFood') n=5
+    L2 getgc() ok=true n=0      <- whole-heap scan returns NOTHING in this VM
+
+So there is no way to reach the Tasks table or its Signal. Do not retry this.
 
 ## The serve chain in full (decompile-confirmed)
 
@@ -37,29 +50,25 @@ actually puts food in `Storage` from that **local signal**. So:
    parented to `promptData.Part` (the temp part in `workspace.Temp`), with
    `MaxActivationDistance = Range or 15`, `HoldDuration = promptData.HoldDuration or 0`, and
    **`Enabled = (Settings:Get(CustomerPrompts) ~= false or not IsCustomerPrompt)`**.
-   A disabled prompt cannot be fired - if customer prompts are off in settings, nothing works.
+   A disabled prompt cannot be fired - if customer prompts are off, nothing works.
 2. `Interact` early-returns if `Tasks:IsBlocked()`, or if the current task is `SendToTable`
    or `Cook`, or if the task is `Serve` and `promptData.Key == "Cook"`. It also has a **0.5 s
    debounce** (`v_u_10`) around the whole body.
 3. `GrabFood` on the local signal, `Key == "Serve"`: iterates `tycoon.Objects.Food` children with
    no `Taken` attribute, and grabs those whose pivot is within **manhattan distance < 4** of
-   `promptData.Model`'s pivot. So `Model` must be the counter the food is sitting at.
-   Then it sets `Tasks:SetTask({Name = Task.Serve, Tycoon = tycoon})`.
+   `promptData.Model`'s pivot. Then it sets `Tasks:SetTask({Name = Task.Serve, Tycoon = tycoon})`.
 4. Hold capacity: `WaiterCart and 4 or WaiterTray and 3 or 1`.
 5. Serving: `ServeFood.Init` listens to `Tasks.TaskInputReceived`, requires
    `CurrentTask.Name == Task.Serve`, then `CompleteForNPC(tycoon, groupId, customerId)` checks
    `Customers:GetCustomerData(...).State == CustomerState.WaitingForDish` **and**
    `GrabFood:IsHoldingFoodForNPC(order, isKid)` - which compares `FoodKey == order`.
-   So the guest's order IS checked, contrary to the earlier "they don't care" reading.
-6. `TaskInputReceived` is fired by `Tasks:HandleInput(part, position)`, which is called from
-   `OnInputBegan` (a mouse click raycast) or `OnSpeechBubbleClicked`. **It is a Packets.Signal,
-   not a remote** - there is no remote a script can fire to reach it.
+6. `TaskInputReceived` is fired by `Tasks:HandleInput(part, position)`, called from
+   `OnInputBegan` (a mouse click raycast) or `OnSpeechBubbleClicked`. `HandleInput` rejects
+   targets where `dx^2 + dz^2 > 1024` or `|dy| > 32`, and has a 0.25 s debounce.
 
-**Consequence:** automating serve means driving the client's own input path. Firing remotes cannot
-work. The realistic options are (a) `fireproximityprompt` on the counter prompt for the grab, then
-clicking each customer's speech bubble, or (b) reaching `TaskInputReceived` through `getgc` and
-firing it with `{Tycoon, GroupId, CustomerId, CurrentTask = {Name = 'Serve', Tycoon}}`. Neither
-has been verified; (b) is the one worth probing next.
+**Consequence:** automating serve means driving the client's own input path:
+`fireproximityprompt` to grab, then a camera-aim + mouse click per customer. That is what
+v8.0.0 does. Still UNVERIFIED in a live run.
 
 ## Counters are `K<n>`, tables are `T<n>` - never mix them (Confirmed by log)
 
@@ -79,14 +88,13 @@ prompts on `ActionText == 'Serve'` and logged `prompt: 0`. Remove the filter:
 
     W2 temp Folder 2 / W3 part Part 1 / W4 ProximityPrompt 176 / W5 total 1
 
-The id is not stable (`140`, `172`, `176` seen). Never hardcode it. v6.4.0 looked for
-`workspace.Temp["140"]` - wrong parent AND a hardcoded id.
+The id is not stable (`140`, `172`, `176` seen). Never hardcode it.
 
 ## Guests accept the WRONG order - user-stated, but the code disagrees
 
 User: "they dont care if you give them the wrong order btw". `ServeFood.CompleteForNPC` calls
-`GrabFood:IsHoldingFoodForNPC(order, isKid)` which compares `FoodKey == order`. Unresolved
-tension; treat order matching as **required** until proven otherwise.
+`GrabFood:IsHoldingFoodForNPC(order, isKid)` which compares `FoodKey == order`. Unresolved;
+treat order matching as **required** until proven otherwise.
 
 ## Call shapes DIFFER per action - never assume uniformity
 
@@ -97,7 +105,7 @@ tension; treat order matching as **required** until proven otherwise.
 | Collect tips | `TipsCollected` only (1) | the tycoon itself |
 | Take order | `TaskCompleted` only (1) | `GroupId` + `CustomerId`, both STRINGS |
 | Seat a guest | `TaskCompleted` only (1) | `FurnitureModel` = a `T<n>` table, `GroupId` (string) |
-| Serve food | **not remotely fireable** - see the serve section | - |
+| Serve food | **not remotely fireable** - prompt grab then camera click | - |
 
 ## Seating: the guest prompt fires NOTHING (User-stated)
 
@@ -145,11 +153,14 @@ heaviest feature its **own** call budget (a single shared bucket starves it).
 9. Seating on any `Items.Surface` child puts groups on kitchen counters.
 10. One attempt per pass + a long cooldown = 3-7 s stalls.
 11. **Firing `Interacted:FireServer` alone never fills `GrabFood.Storage`** - the grab happens
-    on the LOCAL signal inside `Interact`. This is why every remote-only serve failed.
+    on the LOCAL signal inside `Interact`.
+12. **`getgc` cannot reach `TaskInputReceived`.** `getgc('TaskInputReceived')` returns 12 entries
+    whose values are strings; `getgc()` with no key returns 0 entries in this VM, so the Tasks
+    table cannot be found. Firing the Signal from a script is impossible.
 
 ## Still unknown
 
-1. Whether `TaskInputReceived` can be reached via `getgc` and fired from a script.
+1. Whether the camera-aim + click serve route actually lands (raycast filter, camera fight).
 2. Whether the server re-validates the same preconditions as the client `ServeFood` module.
 3. Whether `TeleportRequestedClient` is a BindableEvent (`:Fire`) or a remote (`:FireServer`).
 
@@ -161,5 +172,6 @@ heaviest feature its **own** call budget (a single shared bucket starves it).
 - v6.0.1: Interactions folder, ClassName parts, call rate. **WORKING** bills + tips.
 - v6.1.0: + dishes. **WORKING.** v6.2.0: + orders. **WORKING.**
 - v6.8.0: seat only `^T%d+$`, tray pickup without text filter. **WORKING.**
-- v7.1.0: multi-target per pass, split call budget, test buttons removed. Serve still fails -
-  and the decompile now explains why (see the serve section).
+- v7.1.0: multi-target per pass, split call budget, test buttons removed.
+- v8.0.0: serve via the game's own input path - `fireproximityprompt` to grab (fills Storage)
+  then camera-aim + `mouse1click` per customer, with `CancelGrabRequested` if nothing lands.
