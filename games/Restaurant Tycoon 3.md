@@ -10,23 +10,47 @@ Place id **119048529960596**. `game.Name` reports **`Ugc`**, so Hub pins this pl
 - v6.2.0: orders - "nice everything worked once again".
 - v6.3.0: seating - "nice its functional".
 
-## Kitchen pickup fires NO events (User-stated 2026-10-27)
+## CORRECTION: the kitchen pickup DOES fire an event (2026-10-27)
 
-User: "i think you might be having a hard time picking up the food from the kitchen theres an
-easier way, for me its picking them up one by one, this fires no events but its easier to track
-what your giving out".
+v6.5.0 was built on a wrong reading. The user had said "its picking them up one by one, this
+fires no events", and that was taken literally - so v6.5.0 used `GrabFood:InvokeServer` and
+dropped the interaction call. **It did not pick anything up.** A later capture of the same
+action shows the event plainly:
 
-So the pickup step is **client-side only** - there is no remote to reproduce, and the captured
-`Interactions.Interacted` with `Key="Serve"` / `InteractionType="OrderCounter"` is NOT needed.
-Use **`Restaurant.GrabFood:InvokeServer(foodModel)`** instead - proven working earlier this
-session (returned `true` on `Objects.Food.3`).
+    Events.Restaurant.Interactions.Interacted:FireServer(tycoon, {
+      HoldDuration = 0.25, Id = "172", ActionText = "Serve",
+      WorldPosition = Vector3.new(1208.80, 0.27, 316.02),
+      GamepadKeyCode = Enum.KeyCode.Thumbstick2, TemporaryPart = workspace.Temp.Part,
+      KeyboardKeyCode = Enum.KeyCode.F, Range = 9, IsCustomerPrompt = true, Key = "Serve",
+      Model = tycoon.Items.Surface.K16, Part = workspace.Temp.Part,
+      Prompt = workspace.Temp.Part["172"], InteractionType = "OrderCounter" })
 
-v6.4.0 wasted a version reproducing the counter interaction and guessing the counter model
-(`Items.Surface` child not matching `^T%d+$`). That whole path is removed in v6.5.0.
+Rule: "it fires no events for me" means *the user did not see one*, not *the game sends none*.
+Probe before dropping a call.
 
-## Serving = grab, then one TaskCompleted per dish (User-captured 2026-10-27)
+## `Prompt` is an INDEX BY LIVE PROMPT ID (Confirmed by probe 2026-10-27)
 
-Three captures, each pairing a DIFFERENT dish with a DIFFERENT guest:
+    W2 temp Folder 2
+    W3 part Part 1
+    W4 ProximityPrompt 176      <- sole child of workspace.Temp.Part
+    W5 total 1
+
+So `workspace.Temp.Part["172"]` means "the prompt currently named 172 inside Temp.Part". The id
+is **not stable** - seen as `140`, then `172`, then `176` in three captures. Never hardcode it:
+read the live `ProximityPrompt` child of `workspace.Temp.Part` and send that object as `Prompt`,
+with its name as `Id`.
+
+v6.4.0 looked for `workspace.Temp["140"]` - wrong parent AND a hardcoded id.
+
+## Counter models are `K<n>`, not "the non-T surface" (Confirmed by probe)
+
+    W7 T19, T19, T1, T1, K3, K16, K28, K28, K16, K3, T1, T1, T1
+
+Tables are `T1`/`T19`; **counters are `K3`/`K16`/`K28`** (the capture used `K16`). Match
+`^K%d+$` and pick the nearest to the character, since the pickup is range-gated (Range = 9).
+v6.4.0's "first Surface child that is not T<n>" was a guess that happened to be untested.
+
+## Serving = pickup, then one TaskCompleted per dish (User-captured)
 
     TaskCompleted:FireServer({FoodModel=Objects.Food["10"], Name="Serve",
                               Tycoon=tycoon, GroupId="19", CustomerId="2"})
@@ -35,46 +59,36 @@ Three captures, each pairing a DIFFERENT dish with a DIFFERENT guest:
     TaskCompleted:FireServer({FoodModel=Objects.Food["1"],  Name="Serve",
                               Tycoon=tycoon, GroupId="16", CustomerId="2"})
 
-A dish carries no ids of its own (only `EatMethod`, `Taken`, `Part:Head`,
-`UnionOperation:TestNewPlate`, `Model:Contents`), so the script grabs a dish then tries guests
-in turn - the server accepts only the dish that guest ordered. That is why the three captured
-pairs differ per dish.
+Three captures, three different dishes, three different groups - always `CustomerId="2"`. A
+dish carries no ids of its own (only `EatMethod`, `Taken`, `Part:Head`,
+`UnionOperation:TestNewPlate`, `Model:Contents`), so the script tries guests in turn and the
+server accepts only the dish that guest ordered.
 
 ## Call shapes DIFFER per action - never assume uniformity
 
 | Action | Calls | Target / args |
 |---|---|---|
-| Collect bill | `Interacted` **THEN** `TaskCompleted` (2) | `FurnitureModel` = `Items.Surface` model holding a `Bill` child |
-| Collect dishes | `TaskCompleted` only (1) | `FurnitureModel` = `Items.Surface` model holding a `Trash` child |
+| Collect bill | `Interacted` **THEN** `TaskCompleted` (2) | `FurnitureModel` = `Items.Surface` with a `Bill` child |
+| Collect dishes | `TaskCompleted` only (1) | `FurnitureModel` = `Items.Surface` with a `Trash` child |
 | Collect tips | `TipsCollected` only (1) | the tycoon itself |
 | Take order | `TaskCompleted` only (1) | `GroupId` + `CustomerId`, both STRINGS |
 | Seat a guest | `TaskCompleted` only (1) | `FurnitureModel` = the table, `GroupId` (string) |
-| Serve food | `GrabFood:InvokeServer(dish)` then `TaskCompleted 'Serve'` | `FoodModel` + `GroupId` + `CustomerId` |
+| Serve food | `Interacted` (OrderCounter, live prompt) THEN `TaskCompleted 'Serve'` per dish | `FoodModel` + `GroupId` + `CustomerId` |
 
-Sending an extra unverified remote alongside a single-call action is how v6.0.0 crashed the
-game. Only send what the capture or a proven call shows.
+## Seating: the guest prompt fires NOTHING (User-stated)
 
-## Seating: the guest prompt fires NOTHING (User-stated 2026-10-27)
-
-"when i clicked on the prompt above their head it didnt show an event for me to send you but it
-only showed the event when i pressed on an empty table".
-
-The in-game flow is: click the guest's prompt (client-side, no remote), THEN click an empty
-table, which fires one `TaskCompleted 'SendToTable'`. Nothing from the first click needs
-reproducing.
-
-## Captured seat payload (single call)
+Clicking the guest's own prompt fires no remote; only clicking an empty table fires the single
+`TaskCompleted 'SendToTable'`. Nothing from the first click needs reproducing.
 
     TaskCompleted:FireServer({FurnitureModel = Items.Surface.T1, GroupId = "15",
                               Tycoon = tycoon, Name = "SendToTable" })
 
 ## `Interactions` is a FOLDER, not a remote
 
-Its children include `RemoteEvent Interacted`, `InteractionCreated`, `InteractionDestroyed`,
-`AllInteractionsDestroyed`, `ClickableFurnitureInteracted`, and a `BindableEvent
-ClickableFurnitureInteractedClient`. `Interacted` must be resolved **inside** the folder.
-Firing the Folder itself throws inside pcall and is swallowed - the v6.0.0 defect and likely
-crash path.
+Children include `RemoteEvent Interacted`, `InteractionCreated`, `InteractionDestroyed`,
+`AllInteractionsDestroyed`, `ClickableFurnitureInteracted`, `BindableEvent
+ClickableFurnitureInteractedClient`. Resolve `Interacted` **inside** it. Firing the Folder
+itself throws inside pcall and is swallowed - the v6.0.0 defect and likely crash path.
 
 ## Guest source: `Tycoon.ClientCustomers`
 
@@ -82,18 +96,16 @@ crash path.
     Folder "9"  -> Model "1", Model "2"
     Folder "10" -> Model "1", Model "2"
 
-**Folder name = `GroupId`, child model name = `CustomerId`**, both opaque strings - never
-validate with `tonumber()`; doing so silently dropped every customer in v4.1.1. The captured
-pairs (`GroupId="8"/"15"/"16"/"17"/"19"`, `CustomerId="2"`) match this structure.
-
-Empty `ClientCustomers` is normal when no guests are present - not a bug.
+Folder name = `GroupId`, child model name = `CustomerId`, both opaque strings - **never**
+validate with `tonumber()`; that silently dropped every customer in v4.1.1. Empty is normal when
+no guests are present.
 
 ## Crash post-mortem: v6.0.0
 
 Four defects, all removed in v6.0.1, which then worked:
 
-1. `remote('Restaurant','Interactions')` returned the **Folder**, and `Folder:FireServer(...)`
-   was attempted - the first bill call never fired.
+1. `remote('Restaurant','Interactions')` returned the **Folder**; `Folder:FireServer(...)` was
+   attempted - the first bill call never fired.
 2. `FindFirstChildWhichIsA('BasePart', true)` for part lookup. `IsA` always returns true here,
    so it can return a non-part; sending a Model where a `Part` is expected is a plausible crash
    trigger. **Find parts by `ClassName` only**, skip the target if none is found.
@@ -101,45 +113,40 @@ Four defects, all removed in v6.0.1, which then worked:
    (8 calls per 0.5 s) and one target per feature per pass.
 4. `task.wait` inside the collect loop. Removed; the loop yields only between passes.
 
-Rule for this game: never fire more than one collect target per pass, and never exceed a handful
-of calls per half second. It has crashed once already.
+Rule: never fire more than one collect target per pass, never exceed a handful of calls per half
+second. It has crashed once already.
 
-**Speed tuning (v6.3.0 onwards):** loop `Gap` 0.2, per-feature intervals 0.35, tips 1.0, seat
-0.3, serve 1.0. The **token bucket stays at 8 calls / 0.5 s** on purpose - speeding up the
-*scan* must not raise the *call* rate that caused the crash. Report shows `rateBlocked=`.
+**Speed tuning (v6.3.0+):** loop `Gap` 0.2, per-feature 0.35, tips 1.0, seat 0.3, serve 1.0.
+The **token bucket stays at 8 calls / 0.5 s** on purpose. Report shows `rateBlocked=`.
 
 ## Other live probe facts
 
-- `TaskCompleted` is a plain `RemoteEvent` (one child). An earlier read showing
-  `UnreplicatedEvent` was a garbled response.
-- `GrabFood` is a `RemoteFunction` - a helper that only accepts RemoteEvent/UnreplicatedRemote
-  Event will silently return nil for it (that was a v6.4.0 bug, fixed in v6.5.0).
+- `TaskCompleted` is a plain `RemoteEvent` (one child). An earlier `UnreplicatedEvent` read was
+  a garbled response.
+- `GrabFood` is a `RemoteFunction` - a helper accepting only RemoteEvent/UnreliableRemoteEvent
+  returns nil for it (a real v6.4.0 bug, fixed in v6.5.0).
 - Ownership: `workspace.Tycoons` children, `ObjectValue` whose `Value` is the LocalPlayer.
 - Currency: `leaderstats` -> `IntValue` named `💸 Cash`; rises on its own, so a rising balance is
-  not evidence a script worked. Measure objects disappearing.
-- Bills/trash reading 0 is normal when idle; `trash 5` was seen once at probe time.
+  not evidence. Measure objects disappearing.
 - A single `n=0` from `getgc` is a failed call, not proof of absence.
 
 ## Dead ends (do not retry)
 
-1. **`PlayerGui.CustomerSpeechUI.Adornee` reads NIL** in this VM. The reference script derives
-   customer ids from it; unusable here. Use `ClientCustomers`.
-2. **A `HumanoidRootPart` reports `ClassName == 'Model'`.** Any "walk up until you find a Model"
-   helper stops on the root part and returns the wrong instance.
+1. **`PlayerGui.CustomerSpeechUI.Adornee` reads NIL** in this VM. Use `ClientCustomers`.
+2. **A `HumanoidRootPart` reports `ClassName == 'Model'`.** Walking up to the first Model stops
+   on the root part.
 3. Dishes on the counter carry **no `CustomerId`/`GroupId`**.
 4. `findTycon and nil or findTycoon()` - malformed, fixed in v3.6.1.
 5. Clicking the guest's own prompt fires **no remote**.
-6. Picking food up from the kitchen fires **no remote**.
-7. Guessing the order counter by name shape (`Surface` child not matching `^T%d+$`) was wasted
-   work - the pickup needs no model at all.
+6. **"It fires no events" for the kitchen pickup was WRONG** - see the correction above.
 
 ## Still unknown
 
-1. Whether the server accepts a `Serve` for the wrong guest, or silently drops it. The script
-   relies on drops being harmless while it cycles dishes against guests.
-2. Whether seating also needs the guest in a specific state. The capture is real and single-call,
-   and seating is user-confirmed functional, so this is settled in practice.
-3. Whether `TeleportRequestedClient` is a BindableEvent (`:Fire`) or a remote (`:FireServer`).
+1. Whether the server accepts a `Serve` for the wrong guest or silently drops it. The script
+   relies on drops being harmless while cycling dishes against guests.
+2. Whether `TeleportRequestedClient` is a BindableEvent (`:Fire`) or a remote (`:FireServer`).
+3. `ProximityPromptStyle` in the serve pickup cannot be reproduced as an enum here, so it is
+   omitted - unverified whether the server needs it.
 
 ## Script versions
 
@@ -150,10 +157,11 @@ of calls per half second. It has crashed once already.
 - v4.1.x / v5.x: diagnostics and auto-serve attempts; none worked.
 - v6.0.0: auto money. **Crashed the user's game.**
 - v6.0.1: fixed Interactions folder, ClassName part lookup, call rate. **WORKING** bills + tips.
-- v6.1.0: + auto dish pickup (`CollectDishes`). **WORKING.**
-- v6.2.0: + auto take order (`TakeOrder`). **WORKING.**
-- v6.3.0: faster scan intervals + auto seat (`SendToTable`). **WORKING.**
-- v6.4.0: auto serve via the captured OrderCounter interaction - unnecessary, the pickup fires
-  no events; also had a bug where `GrabFood` (RemoteFunction) resolved to nil.
-- v6.5.0: serve via `GrabFood:InvokeServer(dish)` then `TaskCompleted 'Serve'` per dish/guest.
-  Counter interaction and counter model guessing removed.
+- v6.1.0: + auto dish pickup. **WORKING.**
+- v6.2.0: + auto take order. **WORKING.**
+- v6.3.0: faster scan intervals + auto seat. **WORKING.**
+- v6.4.0: serve via counter interaction - wrong parent and hardcoded prompt id; `GrabFood`
+  (RemoteFunction) also resolved to nil.
+- v6.5.0: dropped the interaction on a wrong "fires no events" reading - picked nothing up.
+- v6.6.0: pickup restored with the **live** prompt id from `workspace.Temp.Part`, counter found
+  by `^K%d+$` and nearest-to-player, then `TaskCompleted 'Serve'` per dish/guest.
