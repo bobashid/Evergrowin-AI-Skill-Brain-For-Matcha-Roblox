@@ -8,19 +8,38 @@ Place id **119048529960596**. `game.Name` reports **`Ugc`**, so Hub pins this pl
 - v6.0.1: bills + tips - "nice everything there works" (2026-10-27).
 - v6.1.0: dishes - "nice everything works the auto dish pickup and cash+tips".
 - v6.2.0: orders - "nice everything worked once again".
-- v6.3.0: seating - "nice its functional".
+- v6.3.0: seating - "nice its functional" (but see the counter bug below).
+
+## Counters are `K<n>`, tables are `T<n>` - never mix them (Confirmed by log 2026-10-27)
+
+    Surface children seen: T19, T19, T1, T1, K3, K16, K28, K28, K16, K3, T1, T1, T1
+
+`K3` / `K16` / `K28` are kitchen **counters**. `T1` / `T19` are **tables**.
+
+The v6.7.0 log showed `seated: group 24 -> K3`, `group 25 -> K16`, `group 27 -> T19`.
+Cause: `freeTables()` accepted any `Items.Surface` child with no Bill/Trash/occupant, which
+includes every counter. **Seating must require `^T%d+$`.** Counters are only ever used as the
+pickup target (`nearestCounter`, `^K%d+$`).
+
+## There is NO per-dish pickup prompt - only the GROUP (tray) pickup
+
+User-stated 2026-10-27: "there is no prompt for singular food pickup only group pickup i sent it
+to you multiple times".
+
+v6.7.0 filtered `workspace.Temp` prompts on `ActionText == 'Serve'` and logged
+`prompt: 0 | remote: no prompt object to reference` - the filter matched nothing because that
+text is not set. Remove the filter: fire `fireproximityprompt` on **every** `ProximityPrompt`
+under `workspace.Temp` (probe showed exactly one there). Because the tray pickup takes a whole
+tray, several dishes can be handed out per pass (`MaxServesPerPass = 5`).
 
 ## Guests accept the WRONG order (User-stated 2026-10-27)
 
-User: "they dont care if you give them the wrong order btw so if i do that pickup method with
-holding a whole tray you can just click every but if not and its faster to have a filter thats
-fine".
+"they dont care if you give them the wrong order btw".
 
 Consequence: the dish->guest **matching problem does not exist**. No per-pair cooldown table, no
-`ServeTries` cycling to find the guest who ordered that dish. Serve any dish to any guest. This
-retires the long-standing "Still unknown: how to match dish to guest" item entirely.
+`ServeTries` cycling. Serve any dish to any guest.
 
-## Kitchen pickup is RANGE/PROMPT gated, not payload gated (2026-10-27)
+## Kitchen pickup is RANGE/PROMPT gated, not payload gated
 
 User: "still not working whats wrong with picking it up from cross map".
 
@@ -28,10 +47,9 @@ The captured pickup carries `Range = 9` and a `WorldPosition`, and the prompt ob
 at `workspace.Temp.Part` while standing near a counter. Hand-building the `Interacted` table and
 firing it from across the map is refused no matter how correct the table is.
 
-**Preferred route: `fireproximityprompt(prompt)`** on every `ProximityPrompt` under
-`workspace.Temp` whose `ActionText == 'Serve'`. That runs whatever client handler the game
-attached - including the pickup - with no distance fiction. The captured `Interacted` call is
-kept only as a **fallback** when no prompt object is present.
+**Preferred route: `fireproximityprompt(prompt)`** on the prompt(s) under `workspace.Temp`.
+That runs whatever client handler the game attached - including the pickup - with no distance
+fiction. The captured `Interacted` call is kept only as a **fallback**.
 
 ## CORRECTION: the kitchen pickup DOES fire an event
 
@@ -55,17 +73,8 @@ picked nothing up. Rule: "it fires no events for me" means *the user did not see
     W5 total 1
 
 `workspace.Temp.Part["172"]` means "the prompt currently named 172 inside Temp.Part". The id is
-**not stable** - seen as `140`, then `172`, then `176`. Never hardcode it: read the live
-`ProximityPrompt` child and send that object as `Prompt`, its name as `Id`.
+**not stable** - seen as `140`, then `172`, then `176`. Never hardcode it.
 v6.4.0 looked for `workspace.Temp["140"]` - wrong parent AND a hardcoded id.
-
-## Counter models are `K<n>` (Confirmed by probe)
-
-    W7 T19, T19, T1, T1, K3, K16, K28, K28, K16, K3, T1, T1, T1
-
-Tables are `T1`/`T19`; **counters are `K3`/`K16`/`K28`** (capture used `K16`). Match `^K%d+$`,
-pick nearest to the character. v6.4.0's "first Surface child that is not T<n>" was an untested
-guess.
 
 ## Serving = pickup, then one TaskCompleted per dish (User-captured)
 
@@ -88,8 +97,8 @@ any guest.
 | Collect dishes | `TaskCompleted` only (1) | `FurnitureModel` = `Items.Surface` with a `Trash` child |
 | Collect tips | `TipsCollected` only (1) | the tycoon itself |
 | Take order | `TaskCompleted` only (1) | `GroupId` + `CustomerId`, both STRINGS |
-| Seat a guest | `TaskCompleted` only (1) | `FurnitureModel` = the table, `GroupId` (string) |
-| Serve food | `fireproximityprompt` on the Serve prompt (fallback: `Interacted`), THEN `TaskCompleted 'Serve'` per dish | `FoodModel` + `GroupId` + `CustomerId` |
+| Seat a guest | `TaskCompleted` only (1) | `FurnitureModel` = a `T<n>` table, `GroupId` (string) |
+| Serve food | `fireproximityprompt` on the tray prompt (fallback: `Interacted`), THEN `TaskCompleted 'Serve'` per dish | `FoodModel` + `GroupId` + `CustomerId` |
 
 ## Seating: the guest prompt fires NOTHING (User-stated)
 
@@ -132,7 +141,7 @@ Four defects, all removed in v6.0.1, which then worked:
 Rule: never fire more than one collect target per pass, never exceed a handful of calls per half
 second. It has crashed once already.
 
-**Speed tuning (v6.3.0+):** loop `Gap` 0.2, per-feature 0.35, tips 1.0, seat 0.3, serve 1.0.
+**Speed tuning (v6.3.0+):** loop `Gap` 0.2, per-feature 0.35, tips 1.0, seat 0.5, serve 1.2.
 The **token bucket stays at 8 calls / 0.5 s** on purpose. Report shows `rateBlocked=`.
 
 ## Other live probe facts
@@ -157,13 +166,17 @@ The **token bucket stays at 8 calls / 0.5 s** on purpose. Report shows `rateBloc
 6. **"It fires no events" for the kitchen pickup was WRONG** - see the correction above.
 7. Hand-firing the pickup `Interacted` table from across the map does not work - it is range
    gated. Use `fireproximityprompt`.
+8. Filtering pickup prompts on `ActionText == 'Serve'` matches nothing - there is no per-dish
+   prompt. Do not re-add the filter.
+9. Seating on any `Items.Surface` child puts groups on kitchen counters - require `^T%d+$`.
 
 ## Still unknown
 
 1. Whether `TeleportRequestedClient` is a BindableEvent (`:Fire`) or a remote (`:FireServer`).
 2. `ProximityPromptStyle` in the serve pickup cannot be reproduced as an enum here, so it is
-   omitted - unverified whether the server needs it. (It is also omitted from the prompt route,
-   which does not need it at all.)
+   omitted - unverified whether the server needs it. (The prompt route does not need it at all.)
+3. Whether the tray prompt appears anywhere other than `workspace.Temp` when standing away from
+   the counter.
 
 ## Script versions
 
@@ -181,5 +194,7 @@ The **token bucket stays at 8 calls / 0.5 s** on purpose. Report shows `rateBloc
   (RemoteFunction) also resolved to nil.
 - v6.5.0: dropped the interaction on a wrong "fires no events" reading - picked nothing up.
 - v6.6.0: pickup restored with the live prompt id, counter by `^K%d+$` nearest-to-player.
-- v6.7.0: pickup via `fireproximityprompt` on the Serve prompt (remote as fallback); dish->guest
-  matching removed since wrong orders are accepted.
+- v6.7.0: pickup via `fireproximityprompt`, dish->guest matching removed. **Seated onto
+  counters** and its prompt filter matched nothing.
+- v6.8.0: seating restricted to `^T%d+$` (counters excluded, seat cooldown 15 s); pickup fires
+  every prompt under `workspace.Temp` with no text filter; up to 5 dishes per pass.
