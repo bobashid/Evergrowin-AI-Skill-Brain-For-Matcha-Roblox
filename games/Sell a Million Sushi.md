@@ -1,7 +1,7 @@
 # Sell a Million Sushi
 
 Place id **125866884667103**. `game.Name` reports **`Ugc`**. Title supplied by the user as the
-place URL slug **Sell-a-Million-Sushi**. Script: none pushed yet — see "Still pending" below.
+place URL slug **Sell-a-Million-Sushi**. Script: `Sell a Million Sushi` in `bobashid/roblox-matcha`.
 
 ## CONFIRMED by probe (2026-10-31)
 
@@ -14,14 +14,36 @@ place URL slug **Sell-a-Million-Sushi**. Script: none pushed yet — see "Still 
   found 0 loot while 34 parts sat in Plot_1 — that was the bug.
 - `LocalPlayer:GetAttribute("assignedPlot")` = `"Plot_1"`. Plots are `Plot_1`..`Plot_6`
   under `workspace.Plots`.
-- `LocalPlayer:GetAttribute("CurrentCount")` is a **number** (read 77, later 642).
-- `LocalPlayer.leaderstats["Net Worth"].Value` is a **STRING** like `"$1.3K"` — it must be
-  parsed (`K`/`M`/`B`) before any delta is meaningful. In the touch tests it printed **empty**,
-  so the node may be a value-less holder or the label reads elsewhere.
+- `LocalPlayer:GetAttribute("CurrentCount")` is a **number** (read 77, 642, 1142).
+- `LocalPlayer.leaderstats["Net Worth"].Value` reads **EMPTY** in tests — do not use it as a
+  witness. `CurrentCount` is the only reliable number.
 - `CollectionService:GetTagged` / `GetTags` / `AddTag` are **nil** in this VM. Any target
   discovery must walk descendants.
 - `firetouchinterest` is a **function**; `fireproximityprompt` and `fireclickdetector` exist.
 - Loot counts at probe time: Plot_1=34, Plot_3=23, Plot_4=69, Plot_5=5, Plot_2=0, Plot_6=0.
+
+## CROSS-MAP SILENT PICKUP IS MEASURED IMPOSSIBLE (2026-11-02)
+
+Two independent measurements, both on `CurrentCount`:
+
+1. **One single far loot item, fired alone.** Picked the furthest part in `Plot_1.LootSpawned`
+   (`Loot1`, tier 1, **d=98**) and fired `LootPickup:FireServer({1}, false)` with nothing else.
+   Result: `C0=1142` -> `single-far ok=true C=1142 delta=0`.
+2. **The user's own 86-pass run** at `radius=32`, nearest loot `33m`:
+   `passes=86 landed=0 missed=86 tiersSent=94`, `CurrentCount 1142 -> 1142`.
+
+Test 1 matters most because it removes every alternative explanation: not batching, not a stale
+part, not a wrong tier array. A single-element call at 98 studs does nothing. **The server gates
+pickup on distance and the gate is short** — under 33 studs, probably near the client's own
+5x15x5 box.
+
+**Consequence, and the thing to remember:** the client's `LootPickupScript` already destroys loot
+inside ~5 studs and fires the pickup itself. So a script's scan almost only ever sees loot
+*outside* that box — precisely the loot the server rejects. That is why every far-fire build
+looked like "works sometimes". It never worked far; the near ones were the game doing it.
+
+**Do not retry cross-map pickup on this game.** Teleport was also removed at the user's request.
+The only working shape is: be near the loot (walk), then fire inside a short radius.
 
 ## THE PICKUP REMOTE (decompiled `PlayerScripts.LootPickupScript`)
 
@@ -35,10 +57,6 @@ call with the whole array. `FireServer({3}, false)` is a one-element array, tier
 
 The `EMP_DeckHand` branch adds a second box around the plot's `TroughPart` and sets the boolean
 true — that is what the second argument means.
-
-**Consequence:** the client destroys loot locally inside ~5 studs, so **a part vanishing is not
-evidence the server accepted anything.** The only honest witnesses are `CurrentCount` and parsed
-`Net Worth`.
 
 ## THE FOUR BUTTONS ARE TOUCH PARTS, NOT PROMPTS
 
@@ -70,20 +88,18 @@ Two independent tests, both with a real before/after on `CurrentCount` and the
    Button position: `Vector3(138.0355, -4.68, 43.6823)`. The print confirmed `btn=true`,
    `hrp=true`, `origSaved=true`, so the call sequence ran.
 
-**Conclusion:** the `CollectButton` server script does not act on `firetouchinterest`. Note the
-caveat: whether the CFrame teleport actually *held* is unproven — a server-authoritative game can
-snap the character back before the touch lands, so test 2 is "touch did nothing", not proof the
-character was genuinely standing on the button.
+**Conclusion:** the `CollectButton` server script does not act on `firetouchinterest`. Caveat:
+whether the CFrame teleport actually *held* is unproven — a server-authoritative game can snap the
+character back before the touch lands.
 
 `type(firetouchinterest) == 'function'` only proves the global exists. Exactly the pattern already
-recorded for `workspace:Raycast`: listed, callable, inert. A `fire*` call returning without error
-is not evidence it delivered a `Touched` event.
+recorded for `workspace:Raycast`: listed, callable, inert.
 
 ## These scripts CANNOT be decompiled - do not retry
 
 `DepositButtonScript`, `CollectButtonScript`, `InstantSellButtonScript`, `UpgradeButtonScript` and
 `Plot_1.OfflineIncome.CollectOfflineIncome` all return **`-- Decompiler: Invalid bytecodes`**.
-They are protected server Scripts. Reading them is a dead end.
+They are protected server Scripts.
 
 ## Offline income is a large uncollected number
 
@@ -93,8 +109,8 @@ They are protected server Scripts. Reading them is a dead end.
     TextLabel:OfflineIncomeTitle = "Offline Fish"
     TextLabel:AmountText        = "713.7K"
 
-Unchanged across every touch attempt. `CollectButton` is worth touching first once the mechanism
-is found — there is real value parked behind it.
+Unchanged across every touch attempt. **713.7K is parked there and no client-side mechanism
+found so far releases it.**
 
 ## Deposit is tier-matched through the trough
 
@@ -102,7 +118,7 @@ is found — there is real value parked behind it.
 `Owner, S0, STarget, Slot, T0, Tier, Docked`.
 `ReplicatedStorage.FishermanModels` holds `Unit1`..`Unit24`, each with `Tier` and `FishName`.
 `TroughPart` is a single `Part` with one `Attachment` and nothing interactive — a **volume
-target**, fed by overlap, not clicked. Deposit therefore goes through the trough, not per-fish.
+target**, fed by overlap, not clicked.
 
 ## ReplicatedStorage layout
 
@@ -111,8 +127,6 @@ Modules: `HelperModule`, `GameAnalytics`, `MusicModuleScript`, `UserInputModuleS
 `FishNameStyle`, `EmployeeAnimator`.
 Folders: `RemoteEvents`(29), `Audio`(21), `UI`(0), `Music`(1), `ChestImages`(6),
 `SushiNPCs`(22), `BoatModels`(6), `LootModels`(24), `LeaderboardData`(3), `FishermanModels`(24).
-Loose: `Model SushiChef`, `RemoteEvent PostieSent`, `PostieReceived`, `GameAnalyticsRemoteConfigs`,
-`GameAnalyticsError`, `BindableEvent OnPlayerReadyEvent`.
 
 ### The 29 remotes
 
@@ -123,9 +137,7 @@ UpdateMoneyMultInfo, PromptBuyMoneyMult, CantAffordEffect, ChestPickup, Teleport
 UpdateChestGui, ChestOpenAnimation, UnlockChest, InstantSellButton, EmployeeToggle, TraderThreshold,
 KitchenEvent, BoatEvent`
 
-Note what is **absent**: no `DepositFish`, no `CollectMoney`, no `Sell` remote. Most of these are
-server→client updates (`Update*`, `PlaySellSound`, `CantAffordEffect`). `InstantSellButton` exists
-but its argument shape was never confirmed.
+No `DepositFish`, no `CollectMoney`, no `Sell` remote. Most are server->client updates.
 
 ## LocalPlayer attributes (25)
 
@@ -141,30 +153,34 @@ GP_AutoMoney, GP_AutoLoot, GP_DoubleLoot, GP_FishTrader, GP_SousChef, GP_Greeter
 1. **Guessing `InstantSellButton` argument shapes.** v2.0.0 walked `()`, `(false)`, `(true)` every
    2 s with ~1.3 s of sleeps inside the loop. **It crashed the user's client.**
 2. **Decompiling the four button scripts or `CollectOfflineIncome`** — `Invalid bytecodes`.
-3. **`CollectionService:GetTagged`** — nil in this VM, so tag-based targeting never works.
-4. **Reading `LootTier` as an attribute** — it does not exist; the tier is in the name.
-5. **Trusting a loot part disappearing as success** — the game's own client destroys it locally.
-6. **Touching another player's buttons** — owner-validated, and reads as griefing.
-7. **`firetouchinterest` on `CollectButton.Button`**, both with the character away and moved onto
-   the button — zero change on `CurrentCount` and on the 713.7K offline billboard, twice, with the
-   call sequence confirmed to run. Synthetic touch is not accepted by the server.
+3. **`CollectionService:GetTagged`** — nil in this VM.
+4. **Reading `LootTier` as an attribute** — does not exist; the tier is in the name.
+5. **Trusting a loot part disappearing as success** — the game destroys it client-side.
+6. **Touching another player's buttons** — owner-validated, reads as griefing.
+7. **`firetouchinterest` on `CollectButton.Button`** — zero change, twice, with the call sequence
+   confirmed to run.
+8. **Cross-map / long-range `LootPickup`.** A single far item at 98 studs returned `delta=0`; an
+   86-pass run at 33m+ logged `landed=0`. The server distance-gates pickup. Measured, not assumed.
+9. **CFrame teleport to loot.** Removed at the user's request and pointless anyway — the server
+   rejects the fire, so teleporting only moved the character for nothing.
+10. **Using `leaderstats["Net Worth"]` as a witness** — it reads empty.
 
-## Still pending (the honest open items)
+## Still pending
 
-1. **Does walking into `CollectButton` normally collect the 713.7K?** This is the decisive test and
-   only the user can run it: walk into the button with no script, watch `Offline Fish`. If it
-   collects -> the server wants genuine physics contact and the only remaining lever is real
-   engine movement (`Humanoid:MoveTo` / `WalkToPoint`), not a synthetic touch. If it does not
-   collect -> the button is disabled or gated (e.g. only after a true offline period, or a
-   gamepass) and the whole path should be abandoned.
-2. Whether `OfflineIncome` collection is capped per session or per hour — the script is protected,
-   so only a live before/after answers it.
-3. `KitchenEvent` / `BoatEvent` argument shapes (both exist, neither confirmed).
+1. Whether walking into `CollectButton` normally releases the 713.7K offline fish. Only the user
+   can test this (walk in, no script, watch `Offline Fish`). If it does not release, the button is
+   gated and the whole collect-money line should be dropped.
+2. `KitchenEvent` / `BoatEvent` argument shapes (both exist, neither confirmed).
+3. The server's exact pickup radius. Measured floor: works inside ~10, fails at 33+. Somewhere
+   between. `Radius` is a menu knob, and the Report prints `landed` vs `missed` so it can be tuned
+   from data.
 
-## Version history of builds shown to the user (inline, never pushed)
+## Version history
 
 - v1.1.0 — attribute-only tier read: `lootWithTier=0` while 34 parts existed. **Broken.**
 - v1.2.0 — tier from name + touch + remote + prompt. **Worked** (user: "nice").
 - v2.0.0 — added auto-sell with three guessed shapes. **Crashed the client.**
-- v2.1.0 — sell deleted (not disabled), one toggle, `busy` guard, cooldown measured from the end
-  of a pass. Pickup only.
+- v2.1.0 — sell deleted, one toggle, `busy` guard. Pickup only.
+- v2.2.0 — nearest-first sort, radius gate, teleport-to-loot default. Teleport later removed.
+- v2.3.0 — teleport removed; walks with `Humanoid:MoveTo` and fires only inside `Radius` (10).
+  Pushed and read back (sha `46cb9c4a`, 13,770 bytes). **Not yet confirmed in game.**
