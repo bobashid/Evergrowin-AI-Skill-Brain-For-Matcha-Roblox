@@ -20,6 +20,7 @@ the same turn.** That is part of the push procedure, not an extra step.
 | `Piano Rhythm Tiles` | 101999883467300 | 15147 | `games/Piano Rhythm Tiles.md` |
 | `Realistic Home Defense` | 105527962898452 | 14208 | `games/Realistic Home Defense.md` |
 | `Restaurant Tycoon 3` | 119048529960596 | 32774 | `games/Restaurant Tycoon 3.md` |
+| `Sell a Million Sushi` | 125866884667103 | 15520 | `games/Sell a Million Sushi.md` |
 | `Chop A Forest` | 103363457515322 | 21785 | - |
 | `Clean Everything` | 140576663170542 | 17762 | - |
 | `Command An Army` | 101770480176177 | 75920 | - |
@@ -32,15 +33,15 @@ the same turn.** That is part of the push procedure, not an extra step.
 | `What If Disasters` | 109440485612336 | 40823 | - |
 | `+1 Upgrade Per Kill` | 113273588963037 | 27161 | - |
 | `Build And Kill Zombies` | 105011592530400 | 8355 | - |
-| `Hub` | n/a (loader) | 7281 | `hub-sync.md` |
+| `Hub` | n/a (loader) | 7625 | `hub-sync.md` |
 
 ## Notes on the table
 
-- **`game.Name` is not always the game.** Merge Block Arena, Plunder PVP and Restaurant Tycoon 3
-  all report `game.Name == 'Ugc'`, the creator group's name. Those three files are named after
-  the real title found from the place page, in-game signage, or supplied by the user (Plunder PVP
-  was named by the user). Check a suspicious name against the web before naming a file after it.
-- **All three `Ugc` games are pinned by place id**, so name matching is never used for them.
+- **`game.Name` is not always the game.** Merge Block Arena, Plunder PVP, Restaurant Tycoon 3 and
+  Sell a Million Sushi all report `game.Name == 'Ugc'`, the creator group's name. Those files are
+  named after the real title found from the place page, in-game signage, or supplied by the user.
+  Check a suspicious name against the web before naming a file after it.
+- **All four `Ugc` games are pinned by place id**, so name matching is never used for them.
   Their `SCRIPTS` keys exist only for manual `_G.Hub.load(...)` calls.
 - **A rename means three writes, not one.** Create the new file, repoint `PLACES` and `SCRIPTS`
   in the same turn, then `delete_file` the old one. `Plunder PVP` was renamed this way from
@@ -52,7 +53,8 @@ the same turn.** That is part of the push procedure, not an extra step.
   `PRISON LIFE TRIGGERBOT`; the HvH build is reachable with
   `_G.Hub.load('Prison Life HvH')`. Both stay in `SCRIPTS` so manual load keeps working.
 - **Place ids come from `Hub`'s `PLACES` table**, read 2026-10-27, plus 85646026816836 read from
-  `matcha_status` in-game on 2026-10-29 and 96469185605358 read from `matcha_status` on 2026-10-29.
+  `matcha_status` in-game on 2026-10-29, 96469185605358 read from `matcha_status` on 2026-10-29,
+  and 125866884667103 read from `matcha_status` on 2026-11-02.
   If one is wrong, `PLACES` is wrong and both need fixing together.
 - **Byte sizes are rough indicators only**; read the file for the real number before quoting one.
 - A note in the `Brain note` column means a `games/<Game>.md` exists with confirmed facts
