@@ -2,6 +2,16 @@
 
 Format: `Error: "<exact text>" -> <meaning and fix>. Confirmed (YYYY-MM-DD). Proof: <source>.`
 
+- Confirmed (2026-11-02): **two assignments on one line with no separator is a parse error, so
+  nothing in the chunk runs.** Player Trip v2.0 shipped
+  `if type(v) == 'number' and v > 0 and v < 2 then CFG.flail = v captured = false end`.
+  Lua stops at `captured` with `unexpected symbol near 'captured'`, and because the whole chunk
+  fails to compile the version print never appears either - the script looks "loaded and doing
+  nothing". Fix: separate them (`CFG.flail = v; captured = false`) or use two lines. Same family
+  as the reserved-key and multi-line-paren errors below: **check the console for a parse error
+  before re-reasoning about behaviour.** Proof: the stored body of `Player Trip` v2.0 in
+  `bobashid/roblox-matcha` read this turn. Static source reading, not a runtime log - the file
+  was read, not executed.
 - Confirmed (2026-10-27): `Error: "Matcha:81: Cannot use '...' outside of a vararg function"` ->
   **`...` was used inside a nested closure.** A wrapper written as
   `local function fire(remote, ...) return pcall(function() remote:FireServer(...) end) end`
