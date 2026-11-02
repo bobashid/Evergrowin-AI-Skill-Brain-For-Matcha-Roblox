@@ -15,7 +15,7 @@ Scripts are pushed to `roblox-matcha`. What gets learned is written here. Nothin
 
 - `BOOTSTRAP.md` is the canonical bootstrap. Atomic Chat's skill settings hold only a **pointer** to it, so the settings text never needs editing again.
 - `learned/` is a real folder and the growth target: `api-facts.md`, `errors.md`, `patterns.md`, `dump-protocol.md`, `working-style.md`, `corrections.md`, `unverified.md`, `community-remotes.md`. New facts go here first.
-- `games/` holds one note per game worked on. Existing notes: `Age Evolution Tycoon.md`, `Arsenal.md`, `CQB Hell.md`, `Merge Block Arena.md`, `Piano Rhythm Tiles.md`, `Plunder PVP.md`, `Realistic Home Defense.md`, `Restaurant Tycoon 3.md`, `Sell a Million Sushi.md`, `The Strongest Battlegrounds.md`. Create new notes from `_TEMPLATE.md`.
+- `games/` holds one note per game worked on, plus one for each universal script that has no place id (currently `Player Trip.md`). Existing notes: `Age Evolution Tycoon.md`, `Arsenal.md`, `CQB Hell.md`, `Merge Block Arena.md`, `Piano Rhythm Tiles.md`, `Player Trip.md`, `Plunder PVP.md`, `Realistic Home Defense.md`, `Restaurant Tycoon 3.md`, `Sell a Million Sushi.md`, `The Strongest Battlegrounds.md`. Create new notes from `_TEMPLATE.md`.
 - The reference parts sit flat at the repo root under their bare names (`failure-protocols.md`, `hub-sync.md`, `api-memory.md`, ...). `SKILL.md` calls them `parts/api-*`; the actual path is the bare root name. Moving them into `parts/` must be done via GitHub's web rename and `INDEX.md` updated in the same commit; re-uploading them risks silent corruption.
 - `_TEMPLATE.md` is the game-note template. Copy it to `games/<Game Name>.md` when a game gets worked on.
 - `matcha-npc-cfg.md` holds the Matcha NPC/bot JSON config schema, the entry template, the `match_mode` table, and the pre-delivery validation checklist. Read it before generating or editing any NPC/bot config.
@@ -36,6 +36,7 @@ Scripts are pushed to `roblox-matcha`. What gets learned is written here. Nothin
 | Task | Read |
 |---|---|
 | Any game-script push | `hub-sync.md`, `script-standard.md`, `script-index.md`, `games/<Game>.md` if it exists |
+| Working on a universal script (no place id, loaded directly) | `games/<Script>.md` if it exists, plus `learned/api-facts.md` before using any new global |
 | Generating or fixing a Matcha NPC / bot config | `matcha-npc-cfg.md` |
 | Needing a place id, or `Hub` looks stale / corrupted | `script-index.md`, then `hub-sync.md` |
 | A remote-based exploit for a game not yet worked on (infinite money, free gamepass, reward spam) | `learned/community-remotes.md` first, then verify with a probe; a lead is not a fact |
@@ -48,6 +49,7 @@ Scripts are pushed to `roblox-matcha`. What gets learned is written here. Nothin
 | Deciding whether Matcha already has a feature; style, intake questions | `builtins-and-style.md` |
 | Using any global or class you have not used this session | `api-globals-limits-pitfalls.md`, then `api-overview-mcp-functions.md` |
 | Memory functions, `getgc`/`applygc`, datatypes, classes | `api-memory.md` |
+| Ragdoll / trip / limb posing / any joint or physics-body question | `learned/api-facts.md` (joints and PlatformStand are unwritable, no angular velocity, `Instance.new` nil) |
 | Newer docs facts, open questions, unverified items | `docs-updates-and-open-questions.md` |
 | Stale version, "no script for place", wrong game loaded | `hub-sync.md` |
 | A freeze or crash report | `failure-protocols.md` (F3) and the bisect recipe in `pattern-render-remotes-loops.md` |
@@ -57,7 +59,7 @@ Scripts are pushed to `roblox-matcha`. What gets learned is written here. Nothin
 ## Folders
 
 - `learned/`: grows every session (API facts, errors, patterns, dump protocol, working style, corrections, unverified, community remotes).
-- `games/`: create on demand from `_TEMPLATE.md`, one note per game.
+- `games/`: create on demand from `_TEMPLATE.md`, one note per game (or per universal script).
 - Reference parts: flat at the repo root for now (see Layout above).
 
 ## Not in this repo
