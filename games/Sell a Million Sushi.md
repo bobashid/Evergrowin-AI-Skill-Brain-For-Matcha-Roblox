@@ -26,8 +26,30 @@ place URL slug **Sell-a-Million-Sushi**. Script: `Sell a Million Sushi` in `boba
   (dead ends #7 and #11).
 - `TextButton` count in a plot is **0** and `ProximityPrompt` count is **0**. Every interactive
   is a 3D touch part. Any prompt- or GUI-button-based approach is dead on arrival.
+- `Drawing.new` supports `Square`, `Line`, `Text`, `Circle`, `Quad`, `Triangle`, `Image` — all
+  present and constructible (probe 2026-11-02).
 
-## THE BUTTON MAP (probed 2026-11-02, unused by the current live build)
+## FISH VALUE IS READABLE AND OVERLAY-ABLE (v2.4.1, 2026-11-02)
+
+`Workspace.Plots.<plot>.Restaurant.Interior.KitchenBoard.MarketBoard` carries a `SurfaceGui`
+named `MarketGui` with these `TextLabel`s:
+
+    Title = "Fish Market"
+    Price = "Fish Value: 1.4x <garbage char>"     <- the live multiplier
+    Axis  = "0.5x" / "1.0x" / "1.5x"              <- chart axis
+    Next  = "Updating in 9s"                      <- countdown to the next change
+
+Parse with `string.match(text, '(%d+%.?%d*)%s*[xX]')` -> `1.4`. Observed range matches the
+user's 0.1x .. 2.0x expectation.
+
+**The overlay needs NO `WorldToScreen`.** It is a fixed-position `Drawing.Text`, so camera
+projection is irrelevant — the one thing in this game that can be drawn without any world→screen
+math. Labels are created ONCE at load and only mutated afterwards; reading the MarketBoard subtree
+is throttled to ~7 Hz because the number changes once every 9 s.
+
+Colour coding used in v2.4.1: `>= 1.5` green, `>= 1.0` amber, below 1.0 red, unreadable grey.
+
+## THE BUTTON MAP (probed 2026-11-02, not used by the live build)
 
 Every interactive is a `Model` containing a `Part` named **`Button`** with a `TouchTransmitter`
 named **`TouchInterest`**. Identify a button by its **parent model name**, never by the part name
@@ -47,21 +69,8 @@ named **`TouchInterest`**. Identify a button by its **parent model name**, never
 
 Instant sell is `Sell.InstantSellButton.Button` (`InstantSellButtonScript`).
 
-**v3.0.0 implemented automation on all of these and the user rolled it back to v2.4.0 on
-2026-11-02.** The map is kept because it is correct and cost several probes; it is not in use.
-
-## FISH MARKET VALUE IS READABLE TEXT (2026-11-02)
-
-`Workspace.Plots.<plot>.Restaurant.Interior.KitchenBoard.MarketBoard` carries a `SurfaceGui`
-named `MarketGui` with these `TextLabel`s:
-
-    Title = "Fish Market"
-    Price = "Fish Value: 1.4x <garbage char>"     <- the live multiplier
-    Axis  = "0.5x" / "1.0x" / "1.5x"              <- chart axis
-    Next  = "Updating in 9s"
-
-Parse with `string.match(text, '(%d+%.?%d*)%s*[xX]')` -> `1.4`. Observed range matches the
-user's 0.1x .. 2.0x slider.
+**v3.0.0 automated all of these and the user rolled it back to v2.4.0.** The map is kept because
+it is correct and cost several probes; it is not wired into anything.
 
 ## BUTTON PRICES ARE ON EACH MODEL'S BillboardGui
 
@@ -162,11 +171,15 @@ All `EMP_*` were **false** at probe time. `GP_AutoLoot` false.
     map, but the user asked to go back to v2.4.0 on 2026-11-02. Rolled back; do not re-offer it
     without being asked.
 
-## The live build is v2.4.0
+## The live build is v2.4.1
 
-v2.4.0 is pickup only: fires `LootPickup` every pass at the nearest `PerPass` loot with **no
-arrival gate and no distance gate**, and reports `landed` vs `missed` on `CurrentCount`. The user
-confirmed pickup works on it.
+v2.4.0 pickup, unchanged, plus the fish-value overlay. Pickup fires `LootPickup` every pass at
+the nearest `PerPass` loot with **no arrival gate and no distance gate**, and reports `landed` vs
+`missed` on `CurrentCount`. The user confirmed pickup works on v2.4.0.
+
+v2.4.1 adds only a `Drawing.Text` overlay (toggle `Show Fish Value Overlay`, on by default) that
+reads the MarketBoard `Price` label and shows `Fish Value: N.NNx`, with `Next` as a subtitle and
+`Overlay Higher` / `Overlay Lower` buttons to move it.
 
 ## Version history
 
@@ -178,7 +191,8 @@ confirmed pickup works on it.
 - v2.3.0 — walk with `Humanoid:MoveTo`, fire only inside `Radius`. **Fired zero times** because
   `MoveTo` is inert and the arrival gate blocked every pass.
 - v2.4.0 — arrival gate removed; fires every pass regardless of distance. **Pickup confirmed
-  working by the user.** This is the live build (rolled back to on 2026-11-02, sha `4bb1d21e`).
-- v3.0.0 — added chef upgrade (priority), collect money, merge, hire (1/5/25/100), market-gated
-  deposit, `One Action At A Time`, `Min Market Value` slider. **Rolled back to v2.4.0 at the
-  user's request on 2026-11-02.** The button map and market reader above were learned building it.
+  working by the user.**
+- v2.4.1 (2026-11-02) — v2.4.0 pickup byte-identical, plus the fish-value multiplier overlay.
+  Pushed and read back (sha `b0249f09`, 19,669 bytes). **Overlay not yet confirmed in game.**
+- v3.0.0 — chef upgrade (priority), collect, merge, hire, market-gated deposit, slider.
+  **Rolled back to v2.4.0 at the user's request on 2026-11-02.**
