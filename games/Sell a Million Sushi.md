@@ -14,9 +14,10 @@ place URL slug **Sell-a-Million-Sushi**. Script: none pushed yet — see "Still 
   found 0 loot while 34 parts sat in Plot_1 — that was the bug.
 - `LocalPlayer:GetAttribute("assignedPlot")` = `"Plot_1"`. Plots are `Plot_1`..`Plot_6`
   under `workspace.Plots`.
-- `LocalPlayer:GetAttribute("CurrentCount")` is a **number** (read 77).
+- `LocalPlayer:GetAttribute("CurrentCount")` is a **number** (read 77, later 642).
 - `LocalPlayer.leaderstats["Net Worth"].Value` is a **STRING** like `"$1.3K"` — it must be
-  parsed (`K`/`M`/`B`) before any delta is meaningful.
+  parsed (`K`/`M`/`B`) before any delta is meaningful. In the touch tests it printed **empty**,
+  so the node may be a value-less holder or the label reads elsewhere.
 - `CollectionService:GetTagged` / `GetTags` / `AddTag` are **nil** in this VM. Any target
   discovery must walk descendants.
 - `firetouchinterest` is a **function**; `fireproximityprompt` and `fireclickdetector` exist.
@@ -55,25 +56,45 @@ and zero `ClickDetector`** in the whole subtree — only four `TouchTransmitter`
 Every part is named `Button`, so identify a button by its **parent model name**, never by the
 part name.
 
-**This is why the remote viewer shows nothing for deposit/sell/collect:** the client never fires a
-named remote for them. `firetouchinterest(hrp, buttonPart, 0)` then `(hrp, buttonPart, 1)` is the
-whole mechanism, and it needs no argument shape at all.
+## SYNTHETIC TOUCH DOES NOT WORK ON THESE BUTTONS (confirmed 2026-11-02)
+
+Two independent tests, both with a real before/after on `CurrentCount` and the
+`OfflineIncome` billboard `AmountText` (which read **713.7K** throughout):
+
+1. **Remote touch, character elsewhere.** `firetouchinterest(hrp, CollectButton.Button, 0)` then
+   `(…, 1)`.
+   Result: `BEFORE offline=713.7K count=642` -> `AFTER offline=713.7K count=642`.
+2. **Touch with the character moved onto the button.** `hrp.CFrame = CFrame.new(bp.X, bp.Y+3, bp.Z)`,
+   wait 0.9 s, read, touch, read, return home, read.
+   Result: `BEFORE 713.7K/642` -> `ONBTN 713.7K/642` -> `AFTER 713.7K/642` -> `HOME 713.7K/642`.
+   Button position: `Vector3(138.0355, -4.68, 43.6823)`. The print confirmed `btn=true`,
+   `hrp=true`, `origSaved=true`, so the call sequence ran.
+
+**Conclusion:** the `CollectButton` server script does not act on `firetouchinterest`. Note the
+caveat: whether the CFrame teleport actually *held* is unproven — a server-authoritative game can
+snap the character back before the touch lands, so test 2 is "touch did nothing", not proof the
+character was genuinely standing on the button.
+
+`type(firetouchinterest) == 'function'` only proves the global exists. Exactly the pattern already
+recorded for `workspace:Raycast`: listed, callable, inert. A `fire*` call returning without error
+is not evidence it delivered a `Touched` event.
 
 ## These scripts CANNOT be decompiled - do not retry
 
 `DepositButtonScript`, `CollectButtonScript`, `InstantSellButtonScript`, `UpgradeButtonScript` and
 `Plot_1.OfflineIncome.CollectOfflineIncome` all return **`-- Decompiler: Invalid bytecodes`**.
-They are protected server Scripts. Reading them is a dead end; the touch mechanism is the way in.
+They are protected server Scripts. Reading them is a dead end.
 
 ## Offline income is a large uncollected number
 
 `Plot_1.OfflineIncome` is a Model containing `Script:CollectOfflineIncome`, a `BillboardGui`,
-`Part1`, `Part2`, `Highlight`. At probe time the billboard read:
+`Part1`, `Part2`, `Highlight`. The billboard reads:
 
     TextLabel:OfflineIncomeTitle = "Offline Fish"
     TextLabel:AmountText        = "713.7K"
 
-So `CollectButton` is worth touching first — there is real value parked behind it.
+Unchanged across every touch attempt. `CollectButton` is worth touching first once the mechanism
+is found — there is real value parked behind it.
 
 ## Deposit is tier-matched through the trough
 
@@ -118,21 +139,24 @@ GP_AutoMoney, GP_AutoLoot, GP_DoubleLoot, GP_FishTrader, GP_SousChef, GP_Greeter
 ## Dead ends (do not retry)
 
 1. **Guessing `InstantSellButton` argument shapes.** v2.0.0 walked `()`, `(false)`, `(true)` every
-   2 s with ~1.3 s of sleeps inside the loop. **It crashed the user's client.** The touch buttons
-   make the remote unnecessary; do not go back to it.
+   2 s with ~1.3 s of sleeps inside the loop. **It crashed the user's client.**
 2. **Decompiling the four button scripts or `CollectOfflineIncome`** — `Invalid bytecodes`.
 3. **`CollectionService:GetTagged`** — nil in this VM, so tag-based targeting never works.
 4. **Reading `LootTier` as an attribute** — it does not exist; the tier is in the name.
 5. **Trusting a loot part disappearing as success** — the game's own client destroys it locally.
-6. **Touching another player's buttons.** `CollectButton` on someone else's plot is almost
-   certainly owner-validated and reads as griefing. Keep to your own plot.
+6. **Touching another player's buttons** — owner-validated, and reads as griefing.
+7. **`firetouchinterest` on `CollectButton.Button`**, both with the character away and moved onto
+   the button — zero change on `CurrentCount` and on the 713.7K offline billboard, twice, with the
+   call sequence confirmed to run. Synthetic touch is not accepted by the server.
 
 ## Still pending (the honest open items)
 
-1. **Does `firetouchinterest` on `CollectButton.Button` actually pay out?** One-shot test written
-   and handed to the user; it prints `BEFORE/AFTER offline=… worth=… count=…`. If nothing moves,
-   the server wants the character physically present and the fix is teleport-next-to-button
-   (the same approach that worked for `Attack` in the insect game), not more touch interest.
+1. **Does walking into `CollectButton` normally collect the 713.7K?** This is the decisive test and
+   only the user can run it: walk into the button with no script, watch `Offline Fish`. If it
+   collects -> the server wants genuine physics contact and the only remaining lever is real
+   engine movement (`Humanoid:MoveTo` / `WalkToPoint`), not a synthetic touch. If it does not
+   collect -> the button is disabled or gated (e.g. only after a true offline period, or a
+   gamepass) and the whole path should be abandoned.
 2. Whether `OfflineIncome` collection is capped per session or per hour — the script is protected,
    so only a live before/after answers it.
 3. `KitchenEvent` / `BoatEvent` argument shapes (both exist, neither confirmed).
