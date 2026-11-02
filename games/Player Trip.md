@@ -29,6 +29,24 @@ the `Get up` button stands you back up. Menu is one tab, "Player Trip", with thr
   **0.0000 position drift**, up vector 1.000 -> 0.800 on a 0.6 rad pitch + 0.25 rad roll, and
   restores to 1.000 exactly. This is what allows a diagonal tumble instead of a straight pitch.
 
+## THE PASTED RAGDOLL SCRIPT CANNOT RUN HERE (probed 2026-11-02)
+
+The user pasted a standard community ragdoll LocalScript (`Instance.new("Attachment")` +
+`Instance.new("BallSocketConstraint")`, `motor.Enabled = false`, `hum.PlatformStand = true`,
+`hum:ChangeState(Enum.HumanoidStateType.Physics)`). A probe the same turn confirmed **every one
+of those five calls fails** on this build:
+
+    Instance                                  -> nil (so no Attachment, no BallSocketConstraint)
+    Humanoid.ChangeState                      -> nil
+    Enum.HumanoidStateType                    -> nil (cannot even name Physics)
+    Motor6D.Enabled  read                     -> nil
+    Motor6D.Enabled  write                    -> Unknown property: Enabled
+    existing BallSocketConstraints in char    -> 0  (24 Attachments exist, all game-owned)
+
+This is the textbook internal-executor tell from `learned/patterns.md`: the mechanism itself needs
+`Instance` creation, so it **cannot be ported by editing**. Do not try. Two honest answers only:
+run it in an executor that exposes `Instance`, or use the rotation fall this script already does.
+
 ## Design decisions
 
 - **v2.1.0** - removed every velocity write. The script writes rotation only; gravity does the
