@@ -59,12 +59,30 @@ threshold — that is what makes it "once when it hits" rather than a spam loop.
 - Slider `Deposit At (x)`: 1.0 .. 2.0, snapped to 0.1 steps by `clampRound`.
 - `DepositGap = 3.0 s` minimum between attempts, so a flapping value cannot thrash the button.
 - `VerifyWait = 0.45 s` before reading `CurrentCount` back — the acceptance test.
-- `Deposit Now (ignore value)` and `Re-arm Deposit` buttons for manual testing.
 - `lastDeposit` reports `took N fish @ X.XXx` when `CurrentCount` fell, else `no change`.
 
 **Why it measures instead of claiming:** every button server script returns `Invalid bytecodes`,
 so what the server checks cannot be read. `firetouchinterest` on `CollectButton` did nothing twice.
 A deposit that the report did not see is not a deposit.
+
+## MENU IS ONE TOGGLE PER FEATURE (v2.6.0, 2026-11-02)
+
+User request: "have only a toggle for each just simple, but for the fish one have a slider".
+
+    Auto Fish Pickup    toggle
+    Auto Deposit Fish   toggle
+    Deposit At (x)      slider 1.0 .. 2.0, 0.1 steps
+    Fish Value Overlay  toggle
+    Report / Stop       buttons
+
+Every helper button from v2.5.0 is gone: `Per Pass +/-`, `Threshold +/-`, `Deposit Now`,
+`Re-arm Deposit`, `Overlay Higher/Lower`, `Read Market Now`. Behaviour is unchanged from v2.5.0 —
+this is a menu-only revision. `PerPass` (8), `DepositStand` (0.18), `DepositGap` (3.0) and
+`VerifyWait` (0.45) remain as CONFIG constants, tunable only by editing the file.
+
+**Rule learned:** the user wants the menu to be the smallest surface that still controls the
+feature. Test buttons that were useful while diagnosing are clutter once it works. Keep `Report`
+(the only way to read acceptance) and `Stop`.
 
 ## THE BUTTON MAP (probed 2026-11-02)
 
@@ -86,7 +104,7 @@ named **`TouchInterest`**. Identify a button by its **parent model name**, never
 
 Instant sell is `Sell.InstantSellButton.Button` (`InstantSellButtonScript`).
 
-v3.0.0 automated all of these and was rolled back. v2.5.0 uses **only** `DepositButton`.
+v3.0.0 automated all of these and was rolled back. v2.5.0+ uses **only** `DepositButton`.
 
 ## BUTTON PRICES ARE ON EACH MODEL'S BillboardGui
 
@@ -184,12 +202,16 @@ All `EMP_*` were **false** at probe time. `GP_AutoLoot` false.
 11. **Gating any action behind an unreadable value** — v2.3.0 fired zero times in 38 passes.
 12. **Any prompt- or TextButton-based approach** — a plot contains zero of both.
 13. **v3.0.0 full button automation (chef/collect/merge/hire/deposit).** Rolled back at the user's
-    request on 2026-11-02; do not re-offer it without being asked. v2.5.0 re-adds only deposit.
+    request on 2026-11-02; do not re-offer it without being asked. v2.5.0+ re-adds only deposit.
+14. **Cluttering the menu with test buttons.** v2.5.0 exposed `Per Pass +/-`, `Threshold +/-`,
+    `Deposit Now`, `Re-arm`, `Overlay Higher/Lower`, `Read Market Now`. The user asked for one
+    toggle per feature plus the slider. Keep `Report` and `Stop` only.
 
-## The live build is v2.5.0
+## The live build is v2.6.0
 
 v2.4.0 pickup (fires `LootPickup` every pass at the nearest `PerPass` loot, no arrival gate, no
-distance gate), plus the v2.4.1 fish-value overlay, plus market-gated auto deposit.
+distance gate), plus the v2.4.1 fish-value overlay, plus market-gated auto deposit, all behind
+four controls: three toggles and one slider.
 
 ## Version history
 
@@ -203,8 +225,9 @@ distance gate), plus the v2.4.1 fish-value overlay, plus market-gated auto depos
 - v2.4.0 — arrival gate removed; fires every pass regardless of distance. **Pickup confirmed
   working by the user.**
 - v2.4.1 — v2.4.0 pickup byte-identical, plus the fish-value multiplier overlay. **User: "nice".**
-- v2.5.0 (2026-11-02) — adds market-gated auto deposit: teleport onto `DepositButton.Button` once
-  at the slider threshold, latch, measure `CurrentCount`. Pushed and read back (sha `059c5015`,
-  24,254 bytes). **Deposit not yet confirmed in game.**
+- v2.5.0 — adds market-gated auto deposit with latch and a `CurrentCount` acceptance test.
+- v2.6.0 (2026-11-02) — menu simplified to one toggle per feature + `Deposit At (x)` slider;
+  all helper buttons removed. Behaviour unchanged from v2.5.0. Pushed and read back
+  (sha `6bdaad82`, 21,488 bytes). **Deposit still not confirmed in game.**
 - v3.0.0 — chef upgrade (priority), collect, merge, hire, market-gated deposit, slider.
   **Rolled back to v2.4.0 at the user's request on 2026-11-02.**
