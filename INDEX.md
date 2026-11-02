@@ -15,7 +15,7 @@ Scripts are pushed to `roblox-matcha`. What gets learned is written here. Nothin
 
 - `BOOTSTRAP.md` is the canonical bootstrap. Atomic Chat's skill settings hold only a **pointer** to it, so the settings text never needs editing again.
 - `learned/` is a real folder and the growth target: `api-facts.md`, `errors.md`, `patterns.md`, `dump-protocol.md`, `working-style.md`, `corrections.md`, `unverified.md`, `community-remotes.md`. New facts go here first.
-- `games/` holds one note per game worked on. Existing notes: `Piano Rhythm Tiles.md`, `The Strongest Battlegrounds.md`, `Arsenal.md`.
+- `games/` holds one note per game worked on. Existing notes: `Age Evolution Tycoon.md`, `Arsenal.md`, `CQB Hell.md`, `Merge Block Arena.md`, `Piano Rhythm Tiles.md`, `Plunder PVP.md`, `Realistic Home Defense.md`, `Restaurant Tycoon 3.md`, `Sell a Million Sushi.md`, `The Strongest Battlegrounds.md`. Create new notes from `_TEMPLATE.md`.
 - The reference parts sit flat at the repo root under their bare names (`failure-protocols.md`, `hub-sync.md`, `api-memory.md`, ...). `SKILL.md` calls them `parts/api-*`; the actual path is the bare root name. Moving them into `parts/` must be done via GitHub's web rename and `INDEX.md` updated in the same commit; re-uploading them risks silent corruption.
 - `_TEMPLATE.md` is the game-note template. Copy it to `games/<Game Name>.md` when a game gets worked on.
 - `matcha-npc-cfg.md` holds the Matcha NPC/bot JSON config schema, the entry template, the `match_mode` table, and the pre-delivery validation checklist. Read it before generating or editing any NPC/bot config.
