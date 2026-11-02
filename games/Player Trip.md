@@ -1,13 +1,13 @@
 # Player Trip
 
 Universal script - **no place id**, it runs in any game. File: `Player Trip` in
-`bobashid/roblox-matcha`. Current version **v2.3.0**. Loaded directly, not through `Hub`
+`bobashid/roblox-matcha`. Current version **v2.4.0**. Loaded directly, not through `Hub`
 (Hub picks by place id / game name, and this script is game-agnostic).
 
 ## What it does
 
-A rebindable key (default **G**) topples the character face-down. Space, the trip key again, or
-the `Get up` button stands you back up. Menu is one tab, "Player Trip", with three buttons:
+A rebindable key (default **G**) topples the character over its feet. Space, the trip key again,
+or the `Get up` button stands you back up. Menu is one tab, "Player Trip", with three buttons:
 `Trip`, `Get up`, `Rebind key`.
 
 ## CONFIRMED by probe (2026-11-02, place 135564683255158)
@@ -28,6 +28,36 @@ the `Get up` button stands you back up. Menu is one tab, "Player Trip", with thr
   `root.CFrame = CFrame.new(p.X,p.Y,p.Z) * base * CFrame.Angles(pitch, 0, roll)` returns ok with
   **0.0000 position drift**, up vector 1.000 -> 0.800 on a 0.6 rad pitch + 0.25 rad roll, and
   restores to 1.000 exactly. This is what allows a diagonal tumble instead of a straight pitch.
+
+## THE FLUNG FEELING WAS THE PIVOT, NOT THE CURVE (v2.4.0, 2026-11-02)
+
+User-stated: "i just dont like how i get flung to trip cant it be natural?".
+
+Diagnosis: every version up to v2.3.0 rotated the body about the `HumanoidRootPart`'s **own
+centre**, which sits ~3 studs above the ground. A rotation about a point in mid-air sweeps the
+head one way and the feet the other and never moves the body *down* - that is a spin, not a fall.
+No amount of curve or ramp tuning fixes a wrong pivot, which is why v2.1.0-v2.3.0 all still felt
+flung. **Rule: when a fake fall reads as a spin/fling, check the pivot before touching the curve.**
+
+v2.4.0 rotates about a world point at the feet:
+
+    root.CFrame = CFrame.new(pivot) * tilt * CFrame.new(-pivot) * baseCF
+
+with `pivot = (root.Position - Vector3.new(0, CFG.pivotDrop, 0))`. That composition is a rotation
+about a world point, so the root follows the arc and the body tips over the feet like a felled
+tree instead of pivoting in place. Still no velocity write anywhere.
+
+- **The base CFrame is captured at trip time and rebuilt from every step**, never composed onto
+the LIVE `root.CFrame`. Composing a fixed-pivot rotation onto the live CFrame re-applies the
+rotation every frame and compounds it - the trap in the old `applyTilt`.
+- `CFG.pivotDrop = 2.5` (~feet on R6); toward 3 = lower/greppier pivot, 1.5 = hinges nearer the hips.
+- Curve changed to `t*t*(2-t)` - slow lean, fast overbalance, slight bleed off the last degrees.
+- `CFG.ramp` 0.60 -> 0.65 s, `CFG.roll` 0.45 -> 0.30 (smaller side roll now that the fall is real).
+
+**UNVERIFIED:** the pivot composition itself has not been probed or seen in game. It follows from
+the confirmed composite-rotation write (drift 0.0000) but the `T(p)*R*T(-p)` form is derived, not
+measured. Test that would confirm it: probe one write of that form and compare `root.Position`
+against the arc `p + R*(p0 - p)`.
 
 ## THE PASTED RAGDOLL SCRIPT CANNOT RUN HERE (probed 2026-11-02)
 
@@ -74,28 +104,25 @@ re-probed: **any snippet whose first action is `ChangeState` / `PlatformStand` /
     down until the player asks to get up, unless the game itself stands them up. Do not
     "fix" that by re-adding an auto-rise - it is the requested behaviour.
 - **v2.3.0** (User-stated 2026-11-02: "can you try to make it natural it doesnt force me in a
-  direction as much to ragdoll me") - three topple changes, no change to the mechanism:
-  1. **random diagonal fall** - each trip rolls `rollNow` in `-CFG.roll .. +CFG.roll`
-     (0.45 rad). Always-forward was the main "forced direction" tell. Set `CFG.roll = 0` to
-     get the old straight pitch back.
-  2. **smoothstep curve** `t*t*(3-2t)` replaces `t*t`. Slow at both ends, so the last 20
-     degrees no longer snap - the body settles rather than arriving.
-  3. **ramp 0.45 -> 0.60 s**.
-  The roll is scaled by `theta / HALF_PI` so the side lean grows with the pitch and the body
-  goes over on a diagonal instead of rolling in place first.
+  direction as much to ragdoll me") - random diagonal fall (`rollNow` in +-CFG.roll, scaled by
+  `theta / HALF_PI`), smoothstep curve `t*t*(3-2t)`, ramp 0.60 s. Did not fix the flung feeling
+  because the pivot was still the root centre - see the v2.4.0 section.
+- **v2.4.0** - feet pivot, captured base, `t*t*(2-t)` curve, ramp 0.65 s, roll 0.30.
 - The limb flop is kept but **self-disabling**: joints are captured only when `C0` reads as
   userdata, which it currently does not, so the console shows `joints captured: 0` and the flop
   never runs. It cannot error.
 
 ## Tuning constants
 
-`CFG.ramp` 0.60 s topple (lower = snappier), `CFG.roll` 0.45 max side roll (0 = straight
-forward), `CFG.settle` 0.35 s rise when the player asks, `CFG.flail` 0.85 rad limb throw,
-`CFG.keyVK` 0x47 (G), `CFG.recoverVK` 0x20 (Space).
+`CFG.ramp` 0.65 s topple (lower = snappier), `CFG.pivotDrop` 2.5 studs below the root centre
+(raise toward 3 = lower pivot, lower toward 1.5 = hips), `CFG.roll` 0.30 max side roll (0 =
+straight forward), `CFG.settle` 0.45 s rise when the player asks, `CFG.flail` 0.85 rad limb
+throw, `CFG.keyVK` 0x47 (G), `CFG.recoverVK` 0x20 (Space).
 
 ## Open questions
 
-- How the topple **looks** in game is still unverified - only that it compiles and runs.
+- How the v2.4.0 feet-pivot topple **looks** in game is unverified - only that it pushed and read
+  back. The pivot maths is derived, not probed.
 - Whether any game stands the character up on its own after a root rotation: not observed.
 
 ## Version history
@@ -110,3 +137,6 @@ forward), `CFG.settle` 0.35 s rise when the player asks, `CFG.flail` 0.85 rad li
   only. Pushed and read back (sha `bc5500f8`, 14,736 bytes).
 - v2.3.0 (2026-11-02) - random diagonal tumble (side roll), smoothstep topple curve, 0.60 s
   ramp. Pushed and read back (sha `70fc7478`, 15,439 bytes).
+- v2.4.0 (2026-11-02) - **pivot moved to the feet**: `CFrame.new(pivot) * tilt * CFrame.new(-pivot) * baseCF`
+  on a captured base, `t*t*(2-t)` curve, ramp 0.65 s, roll 0.30. Pushed and read back
+  (sha `249a4412`, 15,790 bytes). **The felt result is unverified.**
