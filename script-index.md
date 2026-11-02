@@ -20,7 +20,7 @@ the same turn.** That is part of the push procedure, not an extra step.
 | `Piano Rhythm Tiles` | 101999883467300 | 15147 | `games/Piano Rhythm Tiles.md` |
 | `Realistic Home Defense` | 105527962898452 | 14208 | `games/Realistic Home Defense.md` |
 | `Restaurant Tycoon 3` | 119048529960596 | 32774 | `games/Restaurant Tycoon 3.md` |
-| `Sell a Million Sushi` | 125866884667103 | 13478 | `games/Sell a Million Sushi.md` |
+| `Sell a Million Sushi` | 125866884667103 | 19669 | `games/Sell a Million Sushi.md` |
 | `Chop A Forest` | 103363457515322 | 21785 | - |
 | `Clean Everything` | 140576663170542 | 17762 | - |
 | `Command An Army` | 101770480176177 | 75920 | - |
