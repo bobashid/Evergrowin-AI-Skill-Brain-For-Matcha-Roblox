@@ -27,7 +27,7 @@ place URL slug **Sell-a-Million-Sushi**. Script: `Sell a Million Sushi` in `boba
 - `TextButton` count in a plot is **0** and `ProximityPrompt` count is **0**. Every interactive
   is a 3D touch part. Any prompt- or GUI-button-based approach is dead on arrival.
 
-## THE BUTTON MAP (probed 2026-11-02)
+## THE BUTTON MAP (probed 2026-11-02, unused by the current live build)
 
 Every interactive is a `Model` containing a `Part` named **`Button`** with a `TouchTransmitter`
 named **`TouchInterest`**. Identify a button by its **parent model name**, never by the part name
@@ -47,6 +47,9 @@ named **`TouchInterest`**. Identify a button by its **parent model name**, never
 
 Instant sell is `Sell.InstantSellButton.Button` (`InstantSellButtonScript`).
 
+**v3.0.0 implemented automation on all of these and the user rolled it back to v2.4.0 on
+2026-11-02.** The map is kept because it is correct and cost several probes; it is not in use.
+
 ## FISH MARKET VALUE IS READABLE TEXT (2026-11-02)
 
 `Workspace.Plots.<plot>.Restaurant.Interior.KitchenBoard.MarketBoard` carries a `SurfaceGui`
@@ -58,13 +61,12 @@ named `MarketGui` with these `TextLabel`s:
     Next  = "Updating in 9s"
 
 Parse with `string.match(text, '(%d+%.?%d*)%s*[xX]')` -> `1.4`. Observed range matches the
-user's 0.1x .. 2.0x slider. This is the gate for deposit-fish automation.
+user's 0.1x .. 2.0x slider.
 
 ## BUTTON PRICES ARE ON EACH MODEL'S BillboardGui
 
 Each button model has a `BillboardGui` child whose descendants carry a `Text` like `$1.2K`.
-Parse with `string.match(t, '%$([%d%.]+)%s*([KkMmBbTt]?)')` then scale by the suffix. Reading the
-price is how "only press when affordable" is implemented.
+Parse with `string.match(t, '%$([%d%.]+)%s*([KkMmBbTt]?)')` then scale by the suffix.
 
 ## CROSS-MAP SILENT PICKUP IS MEASURED IMPOSSIBLE (2026-11-02)
 
@@ -76,8 +78,8 @@ Two independent measurements, both on `CurrentCount`:
 2. **The user's own 86-pass run** at `radius=32`, nearest loot `33m`:
    `passes=86 landed=0 missed=86 tiersSent=94`, `CurrentCount 1142 -> 1142`.
 
-Test 1 removes every alternative explanation: not batching, not a stale part, not a wrong tier
-array. The server distance-gates pickup and the gate is short.
+Test 1 removes every alternative explanation. The server distance-gates pickup and the gate is
+short.
 
 **The client's own `LootPickupScript` destroys loot inside ~5 studs and fires the pickup itself.**
 So a script's scan almost only ever sees loot *outside* that box - precisely the loot the server
@@ -156,15 +158,15 @@ All `EMP_*` were **false** at probe time. `GP_AutoLoot` false.
 10. **`leaderstats["Net Worth"]`** — reads empty; use the `NetWorth` attribute.
 11. **Gating any action behind an unreadable value** — v2.3.0 fired zero times in 38 passes.
 12. **Any prompt- or TextButton-based approach** — a plot contains zero of both.
+13. **v3.0.0 button automation (chef/collect/merge/hire/deposit).** Built on the correct button
+    map, but the user asked to go back to v2.4.0 on 2026-11-02. Rolled back; do not re-offer it
+    without being asked.
 
-## Still pending
+## The live build is v2.4.0
 
-1. Whether standing ON a button with real engine contact activates it. v3.0.0 teleports the
-   character onto the `Button` part and also fires `firetouchinterest`; if that still does
-   nothing, the protected server scripts want something no client can fake and the whole
-   button-automation line should be dropped.
-2. Whether `KitchenEvent` / `BoatEvent` carry the deposit path (both exist, neither confirmed).
-3. The server's exact pickup radius. Measured: works inside ~10, fails at 33+.
+v2.4.0 is pickup only: fires `LootPickup` every pass at the nearest `PerPass` loot with **no
+arrival gate and no distance gate**, and reports `landed` vs `missed` on `CurrentCount`. The user
+confirmed pickup works on it.
 
 ## Version history
 
@@ -175,9 +177,8 @@ All `EMP_*` were **false** at probe time. `GP_AutoLoot` false.
 - v2.2.0 — nearest-first sort, radius gate, teleport-to-loot. Teleport later removed.
 - v2.3.0 — walk with `Humanoid:MoveTo`, fire only inside `Radius`. **Fired zero times** because
   `MoveTo` is inert and the arrival gate blocked every pass.
-- v2.4.0 — arrival gate removed; fires every pass regardless of distance. Pickup confirmed
-  working by the user.
-- v3.0.0 (2026-11-02) — adds chef upgrade (priority), collect money, merge, hire (1/5/25/100),
-  market-gated deposit, `One Action At A Time`, and a 0.1..2.0 `Min Market Value` slider.
-  Buttons pressed by teleporting onto the `Button` part + `firetouchinterest`. Pushed and read
-  back (sha `e8b86a40`, 23,114 bytes). **Button pressing NOT yet confirmed in game.**
+- v2.4.0 — arrival gate removed; fires every pass regardless of distance. **Pickup confirmed
+  working by the user.** This is the live build (rolled back to on 2026-11-02, sha `4bb1d21e`).
+- v3.0.0 — added chef upgrade (priority), collect money, merge, hire (1/5/25/100), market-gated
+  deposit, `One Action At A Time`, `Min Market Value` slider. **Rolled back to v2.4.0 at the
+  user's request on 2026-11-02.** The button map and market reader above were learned building it.
