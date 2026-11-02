@@ -47,9 +47,26 @@ projection is irrelevant — the one thing in this game that can be drawn withou
 math. Labels are created ONCE at load and only mutated afterwards; reading the MarketBoard subtree
 is throttled to ~7 Hz because the number changes once every 9 s.
 
-Colour coding used in v2.4.1: `>= 1.5` green, `>= 1.0` amber, below 1.0 red, unreadable grey.
+Colour coding in v2.4.1+: `>= DepositAt` green, `>= 1.0` amber, below 1.0 red, unreadable grey.
 
-## THE BUTTON MAP (probed 2026-11-02, not used by the live build)
+## MARKET-GATED AUTO DEPOSIT (v2.5.0, 2026-11-02) — NOT YET CONFIRMED
+
+Behaviour: watch the multiplier on its own loop. When it reaches the slider value, teleport ONTO
+`Sell.DepositButton.Button` **once**, `firetouchinterest` 0 then 1, return to the saved CFrame, then
+read `CurrentCount` back. **Latch** after the attempt and re-arm only when the value drops below the
+threshold — that is what makes it "once when it hits" rather than a spam loop.
+
+- Slider `Deposit At (x)`: 1.0 .. 2.0, snapped to 0.1 steps by `clampRound`.
+- `DepositGap = 3.0 s` minimum between attempts, so a flapping value cannot thrash the button.
+- `VerifyWait = 0.45 s` before reading `CurrentCount` back — the acceptance test.
+- `Deposit Now (ignore value)` and `Re-arm Deposit` buttons for manual testing.
+- `lastDeposit` reports `took N fish @ X.XXx` when `CurrentCount` fell, else `no change`.
+
+**Why it measures instead of claiming:** every button server script returns `Invalid bytecodes`,
+so what the server checks cannot be read. `firetouchinterest` on `CollectButton` did nothing twice.
+A deposit that the report did not see is not a deposit.
+
+## THE BUTTON MAP (probed 2026-11-02)
 
 Every interactive is a `Model` containing a `Part` named **`Button`** with a `TouchTransmitter`
 named **`TouchInterest`**. Identify a button by its **parent model name**, never by the part name
@@ -69,8 +86,7 @@ named **`TouchInterest`**. Identify a button by its **parent model name**, never
 
 Instant sell is `Sell.InstantSellButton.Button` (`InstantSellButtonScript`).
 
-**v3.0.0 automated all of these and the user rolled it back to v2.4.0.** The map is kept because
-it is correct and cost several probes; it is not wired into anything.
+v3.0.0 automated all of these and was rolled back. v2.5.0 uses **only** `DepositButton`.
 
 ## BUTTON PRICES ARE ON EACH MODEL'S BillboardGui
 
@@ -167,19 +183,13 @@ All `EMP_*` were **false** at probe time. `GP_AutoLoot` false.
 10. **`leaderstats["Net Worth"]`** — reads empty; use the `NetWorth` attribute.
 11. **Gating any action behind an unreadable value** — v2.3.0 fired zero times in 38 passes.
 12. **Any prompt- or TextButton-based approach** — a plot contains zero of both.
-13. **v3.0.0 button automation (chef/collect/merge/hire/deposit).** Built on the correct button
-    map, but the user asked to go back to v2.4.0 on 2026-11-02. Rolled back; do not re-offer it
-    without being asked.
+13. **v3.0.0 full button automation (chef/collect/merge/hire/deposit).** Rolled back at the user's
+    request on 2026-11-02; do not re-offer it without being asked. v2.5.0 re-adds only deposit.
 
-## The live build is v2.4.1
+## The live build is v2.5.0
 
-v2.4.0 pickup, unchanged, plus the fish-value overlay. Pickup fires `LootPickup` every pass at
-the nearest `PerPass` loot with **no arrival gate and no distance gate**, and reports `landed` vs
-`missed` on `CurrentCount`. The user confirmed pickup works on v2.4.0.
-
-v2.4.1 adds only a `Drawing.Text` overlay (toggle `Show Fish Value Overlay`, on by default) that
-reads the MarketBoard `Price` label and shows `Fish Value: N.NNx`, with `Next` as a subtitle and
-`Overlay Higher` / `Overlay Lower` buttons to move it.
+v2.4.0 pickup (fires `LootPickup` every pass at the nearest `PerPass` loot, no arrival gate, no
+distance gate), plus the v2.4.1 fish-value overlay, plus market-gated auto deposit.
 
 ## Version history
 
@@ -192,7 +202,9 @@ reads the MarketBoard `Price` label and shows `Fish Value: N.NNx`, with `Next` a
   `MoveTo` is inert and the arrival gate blocked every pass.
 - v2.4.0 — arrival gate removed; fires every pass regardless of distance. **Pickup confirmed
   working by the user.**
-- v2.4.1 (2026-11-02) — v2.4.0 pickup byte-identical, plus the fish-value multiplier overlay.
-  Pushed and read back (sha `b0249f09`, 19,669 bytes). **Overlay not yet confirmed in game.**
+- v2.4.1 — v2.4.0 pickup byte-identical, plus the fish-value multiplier overlay. **User: "nice".**
+- v2.5.0 (2026-11-02) — adds market-gated auto deposit: teleport onto `DepositButton.Button` once
+  at the slider threshold, latch, measure `CurrentCount`. Pushed and read back (sha `059c5015`,
+  24,254 bytes). **Deposit not yet confirmed in game.**
 - v3.0.0 — chef upgrade (priority), collect, merge, hire, market-gated deposit, slider.
   **Rolled back to v2.4.0 at the user's request on 2026-11-02.**
