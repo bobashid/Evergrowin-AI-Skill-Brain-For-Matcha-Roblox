@@ -47,6 +47,21 @@ This is the textbook internal-executor tell from `learned/patterns.md`: the mech
 `Instance` creation, so it **cannot be ported by editing**. Do not try. Two honest answers only:
 run it in an executor that exposes `Instance`, or use the rotation fall this script already does.
 
+### The "this works" FallingDown snippet is the same dead end (2026-11-02)
+
+A second snippet found online was:
+
+    Humanoid:ChangeState(Enum.HumanoidStateType.FallingDown)
+    RootPart.AssemblyLinearVelocity += RootPart.CFrame.LookVector * 5
+
+It is real, ordinary Roblox - and it still cannot run here. Line 1 needs `ChangeState` (nil) and
+`Enum.HumanoidStateType` (nil, so `.FallingDown` cannot even be indexed); the chunk dies before
+line 2. The impulse on line 2 *would* work (`AssemblyLinearVelocity` is a readable/writable
+Vector3), but a velocity impulse is precisely the "forces" the user asked to remove in v2.1.0.
+Record this so a third online snippet of the same shape is answered immediately instead of
+re-probed: **any snippet whose first action is `ChangeState` / `PlatformStand` / a constraint
+`Instance` is a no here, regardless of how many people report it working elsewhere.**
+
 ## Design decisions
 
 - **v2.1.0** - removed every velocity write. The script writes rotation only; gravity does the
