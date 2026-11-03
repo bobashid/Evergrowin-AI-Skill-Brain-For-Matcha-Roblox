@@ -5,7 +5,7 @@ Place id **119925538689885**. `game.Name` reports **`Ugc`**. Script: `Steal Or D
 
 ## What the script does
 
-Two tabs sections: `ESP` (`Item ESP`, `Exit ESP`) and `Rarity` (one toggle per rarity +
+Two sections: `ESP` (`Item ESP`, `Exit ESP`) and `Rarity` (one toggle per rarity +
 `Unknown`). Item ESP boxes **active match loot only**, one marker per item, with
 `rarity  name  [dist]` text coloured by rarity. Exit ESP boxes `ExitPoint` parts and
 `Exit Sign - Lit` models.
@@ -75,4 +75,4 @@ User: "you got the spawn down but want active items and with a rarity toggle".
   the whole workspace for Parts named `Item`, so in the lobby it boxed the 288 shop displays.
 - 1.1.0 (2026-11-03) - active items only (loot folders), one marker per item, layered rarity
   lookup with a per-instance cache, `uncommon`-contains-`common` match ordering fixed, console
-  tally on change. Pushed and read back (sha `b8f1d0e4`).
+  tally on change. Pushed and read back (sha `ad83262b`, 20,240 bytes).
