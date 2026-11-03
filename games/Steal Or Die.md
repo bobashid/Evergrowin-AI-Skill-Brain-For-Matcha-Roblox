@@ -5,7 +5,7 @@ Place id **119925538689885**. `game.Name` reports **`Ugc`**. Script: `Steal Or D
 
 ## What the script does
 
-`ESP` section (`Item ESP`, `Exit ESP`, `Min Value ($)` slider), `Rarity` section (one toggle
+Two sections: `ESP` (`Item ESP`, `Exit ESP`, `Min Value ($)` slider) and `Rarity` (one toggle
 per rarity + `Unknown`). Item ESP boxes loot from `workspace.MyLoot`, sorted highest value
 first, capped at 40 labels, text `rarity  key  $value  weightkg  [dist]`, dimmed when the item
 will not fit in your remaining carry room.
@@ -89,4 +89,4 @@ probed, now safe to build on:
 - 1.2.0 (2026-11-03) - **reads `workspace.MyLoot`**, rarity taken straight from the `Rarity`
   attribute, value + weight from attributes, sorted highest value first, `Min Value ($)` slider,
   40-label cap, items that will not fit dimmed using `CarryCapacity - CarryWeight`,
-  SecondLife value halving. Pushed and read back (sha `f1e2d3c4`, 22,100 bytes).
+  SecondLife value halving. Pushed and read back (sha `7d8448c7`, 23,294 bytes).
