@@ -2,6 +2,37 @@
 
 Short, reusable, proven in a real game. Format: name, when to use, 3 to 10 lines of code or steps, proof and date. A pattern used everywhere moves into the matching reference file.
 
+## Read a game's per-item data from ATTRIBUTES before scraping TextLabels
+
+When a game spawns loot/items as Parts, check the instance's own attributes first. In Steal Or
+Die every item in `workspace.MyLoot` carries `Rarity` (string), `Value` (number), `Weight`
+(number), `ItemKey` (string), `BaseValue`, `Loot`, `SpotId` - so the ESP needs no label parsing
+and no ancestor walk at all.
+
+- Symptom that you skipped this: "only seeing a few items" while many exist - you are reading
+the wrong folder, not the wrong field. Steal Or Die v1.1.0 read `workspace.LootItems` (1 child)
+instead of `workspace.MyLoot` (29 children).
+- Cheap test before writing code: `for k,v in pairs(part:GetAttributes()) do print(k,v) end` on
+  one live item.
+- Keep the text/ancestor fallback in the script, but put the attribute read FIRST - it is one
+  call and it is authoritative.
+
+Confirmed (2026-11-03) in Steal Or Die: `matcha_exec` on `workspace.MyLoot` printed 29 items,
+each with `Rarity=Common(string)`, `Value=110(number)`, `Weight=8(number)`, `Key=Monitor`.
+
+## An entity can be disguised as a Player, not only an NPC rig
+
+Do not assume "entity = a workspace Model". In Steal Or Die an entity can occupy a Player
+object, flagged with `player:GetAttribute("IsEntity") == true`. Confirm with
+`Humanoid.MaxHealth == math.huge` (an entity has infinite health) and fall back to the flagged
+list when nothing confirms. Separately, AI rigs ARE plain `workspace` children,
+`ClassName == 'Model'`, with a `HumanoidRootPart`, whose name is not a player name - and a
+static-rig blacklist is needed (`AdminPunchRig`, `KillVictimPreview`, `The Hollow Menu`).
+
+User-stated (2026-11-03): the premade community script for Steal Or Die does exactly this, and
+also warns that sprinting nonstop with infinite stamina gets you teleported back - short bursts
+only.
+
 ## `FireServer` returning true does not mean the server accepted it
 
 `pcall(function() remote:FireServer(payload) end)` returns true when the call was **sent**. A
@@ -125,7 +156,7 @@ To draw a range circle or any world-space outline with `Drawing.Line`:
 
 Third-party sample (2026-10-30): The Strongest Battlegrounds AutoBlock, 16 segments, colour switched by whether a target is locked. Same UNVERIFIED caveat as above - seen in someone else's working script, not yet run in ours.
 
-## Restore last-known-good when the game validates a Value you wrote
+## Restore last-known-good when the game validates a Value you write
 Some games sanitise a Value you write: you set `Data.Melee.Value = "SomeSkin"`, the game rejects it and writes back an empty string or a number. A script that only writes ends up holding a poisoned value and no idea why.
 Keep the last value the game accepted, and restore from it:
 ```lua
@@ -141,7 +172,7 @@ else
 end
 ```
 - `string.find(v, "%a")` = "contains at least one letter" is a cheap reject for nil, `""`, and numeric garbage - which is exactly what a cleared StringValue looks like.
-- Check *before* you use the value, not after the script breaks. The first read after the game clears it is the only warning you get.
+- Check *before* you use the value, not after it breaks. The first read after the game clears it is the only warning you get.
 - Keep a hardcoded default as the last resort: `lastGood` can itself be poisoned if the game clears it twice before the loop runs again.
 
 Third-party sample (2026-10-30): Arsenal Melee Changer, `player.Data.Melee` (StringValue), default `dfmelee`. UNVERIFIED - the script asserts the game clears invalid melees; we have not probed it.
