@@ -3,6 +3,20 @@
 Rules about how a session works. These come from user instructions and they override any
 instinct to be economical.
 
+## No stop key, ever (standing user rule)
+
+Confirmed (2026-11-05, User-stated): **never give a script a global stop key, a "X to stop"
+binding, or a "stop everything" hotkey.** User: "i dont like the x stop everything i dont ever
+want that".
+
+- Stop is done by switching the feature's own toggle off. That is the only stop control.
+- Do not add a `stopKey` / `stopKey`-style constant to `CONFIG`, do not poll `iskeypressed` for
+  one, and do not put "X = stop" in a menu `Text` line or in the header `Controls:` line.
+- Existing scripts that still have one (Bug Evolution v4.7 and earlier) get it removed on the
+  next touch of that file: drop the constant, drop the `iskeypressed` loop, fix the header and
+  the menu text.
+- A `stop()` function and `_G[NAME].stop` stay - those are reload cleanup, not a user keybind.
+
 ## Always full brain, never a lite mode
 
 Read the whole brain on every Matcha task: list the root, read every file, list every folder
