@@ -1,24 +1,38 @@
 # Bug Evolution (place 70650894743738)
 
-Script: `Bug Evolution` in `bobashid/roblox-matcha`. Orb farm, void orb farm, mob hover farm.
+Script: `Bug Evolution` in `bobashid/roblox-matcha`. Orb farm, void orb farm, mob hover farm, auto eat.
 
 ## World layout
 
 - `Workspace.Orbs` — Folder, ~995 children, each a **Part** named `Orb` with a real `.Position` and no children.
-- `Workspace.VoidOrbs` — Folder, ~10 children, each a **Model** named `VoidOrb` with parts `Core` (1.6³), `Shimmer` (2³) and `Hit` (6³, carries two `TouchTransmitter`s). A Model has **no `.Position`**, so read `Hit`/`Core` instead. Proof: `matcha_exec` dump, this session. **This is why the first void-orb farm collected nothing** — it called `.Position` on the Model and got nil.
-- `Workspace.Bugs` — Folder of ~200 Models (`Big Cricket`, `Beetle`, `Caterpillar`) with `Humanoid` + `HumanoidRootPart`, attributes `BugId`, `Kind`, `Zone`, `Scale`, `Radius`, `SizeTag`, colours. `Humanoid.MaxHealth` reads 50.
+- `Workspace.VoidOrbs` — Folder, ~10 children, each a **Model** named `VoidOrb` with parts `Core` (1.6³), `Shimmer` (2³) and `Hit` (6³, carries two `TouchTransmitter`s). A Model has **no `.Position`**, so read `Hit`/`Core` instead. Proof: `matcha_exec` dump. **This is why the first void-orb farm collected nothing** — it called `.Position` on the Model and got nil.
+- `Workspace.Bugs` — Folder of ~200 Models (`Big Cricket`, `Beetle`, `Caterpillar`) with `Humanoid` + `HumanoidRootPart`, attributes `BugId`, `Kind`, `Zone`, `Scale`, `Radius`, `SizeTag`, colours. `Humanoid.MaxHealth` reads 50. Each bug also has a plain part named `Body` (relevant to the eat bug below).
 - `Workspace.ClientLegs` — leg-only Models per bug (`Beetle_Legs`), empty children.
 - Other folders: `Breakables`, `RainbowOrbs`, `VoidEvent`, `Nests`, `Wisps`, `AmbientFX`.
 
 ## Damage
 
-Confirmed (date unknown): **`Humanoid.Health` and `Humanoid.MaxHealth` are not writable** — the write raises `Unknown property: Health` (`pcall` returns false), and reading them works. `Humanoid:TakeDamage` is `nil`. Proof: two probes this session.
+Confirmed (date unknown): **`Humanoid.Health` and `Humanoid.MaxHealth` are not writable** — the write raises `Unknown property: Health` (`pcall` returns false), and reading them works. `Humanoid:TakeDamage` is `nil`. Proof: two probes.
 Consequence: a client-side "silent kill" that zeroes health is impossible in this game. Do not ship one and call it working.
 
 Confirmed (date unknown): `ReplicatedStorage.Remotes` holds 41 entries including `Attack` (RemoteEvent), `HitConfirm`, `XPGain`, `OrbCollected`, `VoidAction` (RemoteFunction). Proof: probe listing.
 UNVERIFIED (date unknown): whether `Remotes.Attack:FireServer(humanoid)` damages a bug. Test: fire it at one bug, read `Humanoid.Health` before/after. Probes were cut off before this printed.
 
+## Movement / physics (probed)
+
+- `HumanoidRootPart.AssemblyLinearVelocity` and `.Velocity` **are writable** (`ok=true`).
+- `Humanoid.Sit` and `Humanoid.PlatformStand` are **not writable** (`Unknown property: Sit` / `PlatformStand`).
+- `CFrame.new(vector3)` **raises** `CFrame.new expects 0, 3, 6, or 12 arguments` — always pass three numbers, never a Vector3.
+- `Enum.HumanoidStateType` is `nil` in this build; `RunService.RenderStepped` and `Heartbeat` exist.
+- Confirmed (2026-11-05, User-stated + probe): a mob-farm anchor written **below** the target does not hold — the character is shoved back up to floor level, which the user describes as "resetting to 0 / rubber banding". Mitigation shipped: re-write the CFrame on `RenderStepped` **and** zero `AssemblyLinearVelocity`/`Velocity` every frame.
+- UNVERIFIED (2026-11-05): whether Matcha's `SliderInt` accepts a **negative** minimum. User: "negative doesnt work it keeps resetting to 0". Suspected clamp to 0. Workaround shipped: slider `0..100` as a *distance* plus a `Below Target` boolean; never pass a negative slider range until this is probed.
+
+## Auto eat
+
+Confirmed (2026-11-05): matching a name fragment list that includes `body` matched **every bug's `Body` part** and spammed `ate Body` dozens of times a second. Rule: corpse/food matching must (a) avoid generic words like `body`, and (b) skip any instance with a `Humanoid` ancestor, i.e. a live creature's own parts.
+UNVERIFIED (date unknown): what the game actually uses to eat a corpse (prompt, click detector, touch or a remote). The sweep fires all three client-side triggers; no corpse object was present during the probes.
+
 ## Notes
 
 - `UI` exposes only `AddTab`, `RemoveTab`, `GetValue`, `SetValue`. `UI.AddTab(name, cb)` returns **nil** — build widgets inside the callback, never from a return value.
-- Teleport writes (`hrp.CFrame = ...`) return `ok=true`; one probe read the character's position back unchanged 0.2 s later, so re-read before concluding a teleport is authoritative.
+- Teleport writes (`hrp.CFrame = ...`) return `ok=true`; re-read the position before concluding a teleport is authoritative.
