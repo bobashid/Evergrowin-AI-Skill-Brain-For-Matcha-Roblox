@@ -13,6 +13,8 @@ the same turn.** That is part of the push procedure, not an extra step.
 | Game (file name) | Place ID | Bytes | Brain note |
 |---|---|---|---|
 | `Age Evolution Tycoon` | 96469185605358 | 6282 | `games/Age Evolution Tycoon.md` |
+| `Bug Evolution` | 70650894743738 | 21332 | `games/Bug Evolution.md` |
+| `Pet Simulator 99` | 8737899170 | 5799 | `games/Pet Simulator 99.md` |
 | `Plunder PVP` | 85646026816836 | 17131 | `games/Plunder PVP.md` |
 | `CQB Hell` | 98689921952741 | ~21k | `games/CQB Hell.md` |
 | `Merge Block Arena` | 76024476718474 | 10698 | `games/Merge Block Arena.md` |
@@ -33,7 +35,7 @@ the same turn.** That is part of the push procedure, not an extra step.
 | `What If Disasters` | 109440485612336 | 40823 | - |
 | `+1 Upgrade Per Kill` | 113273588963037 | 27161 | - |
 | `Build And Kill Zombies` | 105011592530400 | 8355 | - |
-| `Hub` | n/a (loader) | 7625 | `hub-sync.md` |
+| `Hub` | n/a (loader) | 8281 | `hub-sync.md` |
 
 ## Notes on the table
 
@@ -49,6 +51,7 @@ the same turn.** That is part of the push procedure, not an extra step.
   as Prison Life. Both stay in `SCRIPTS` so manual load keeps working.
 - **Place ids come from `Hub`'s `PLACES` table**, plus 85646026816836 and 96469185605358 read from
   `matcha_status` on 2026-10-29, and 125866884667103 read from `matcha_status` on 2026-11-02.
+  Pet Simulator 99's 8737899170 was supplied by the user on 2026-11-05.
 - **Byte sizes are rough indicators only**; read the file for the real number before quoting one.
 - A note in the `Brain note` column means a `games/<Game>.md` exists with confirmed facts.
   No note means the next session starts from zero on that game.
