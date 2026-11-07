@@ -21,19 +21,32 @@ Place id `124357835578554`. `game.Name` reports `Ugc` (the creator group), so ma
 - The game's own `PlayerScripts.Client.Controllers.LooseCountController` finds loose items with **`CollectionService:GetTagged("LooseItem")`** and reads **`part:GetAttribute("Count")`** (numeric, >1 shows an `xN` billboard). It also filters `part:IsA("BasePart")`.
 - **`CollectionService:GetTagged` / `HasTag` / `GetInstanceAddedSignal` do not exist in this VM** (see `learned/api-facts.md`), so the tag route is closed here. Use the attribute instead: a loose berry is a BasePart whose `GetAttribute("Count")` is a number >= 1.
 - **Name matching alone produces false positives.** `Workspace.Hub.Decoration.Rock 2` holds dozens of MeshParts named `Icosphere` / `Icosphere.001` at 92-130 studs from spawn - they match any `icosphere` filter and have no `Count`. Reject anything under `Hub`, `Decoration`, `Nodes`, `PlacementGhost` or `Prefabs`.
-- `RequestPickup` is fired with the loose berry Part itself.
 
-## Both remotes are range-checked server-side (2026-11-05, user-stated + probe)
+## CORRECTION (2026-11-07, PROBED): `RequestPickup` takes the `EntityId` STRING, not the Part
 
-- User report: "not working for berry bushes not in range and when in range it picks up extremely slow". Firing `RequestHarvest` from 51 studs changed nothing (`berriesAfterFar` stayed at 12); firing it after moving onto the bush was the working case.
-- Consequence: a "silent" cross-map farm is impossible for this game. The only honest route is to move the character to each bush / berry (warp via `HumanoidRootPart.CFrame`), fire, and warp back when idle - which is what `ABOVE` v5.x does.
-- `RequestPickup` responds to repeated fires on the same part, so retrying a few times per item at close range is worth doing.
+This section replaces the old line "`RequestPickup` is fired with the loose berry Part itself", which was **wrong** and cost a whole round trip of "the auto pickup does nothing".
 
-## Harvest mechanics measured (date unknown, PROBED - the numbers the collector is built on)
+- **`Remotes.RequestPickup:FireServer(<item>:GetAttribute("EntityId"))`** - a string like `"item_4711600"`. Firing it with the Part instance is **accepted and silently ignored**: the Part stays parented, no error, no state change. Measured on one berry Part: fired 5 times with the Part -> `alive=true`; the very next attempt with the EntityId string -> `alive=false`.
+- Shape test on one target, 3 fires each, 0.08 s apart: `FireServer()` -> alive, `FireServer(part)` -> alive, **`FireServer(entityId)` -> collected**. `FireServer(part, 1)`, `FireServer(model)` and `FireServer(child)` were not needed once the EntityId form worked.
+- **Pickup fires get dropped in bursts too**, like `RequestHarvest`: 4 fires 0.08 s apart collected 3. Use a gap and let the loop retry survivors next tick rather than firing once and assuming success.
+- **Distance does not look like the gate.** Collected at 81 studs with no warp; did not collect at 120.9 or 22.5. That pattern is not a radius, so treat pickup as *not* range-checked and retry rather than warp. Consequence: **auto pickup needs no teleport at all** - fire the EntityId from wherever you stand.
+- `RequestPickup` also collects the crafted berry items (`BerryPie`, `BerryJam`) sitting in the same folder, not just `Berries`.
+- A pickup item can be a **Part with a nested `Model` child** (`Items.Berries` is a Part whose first child is a Model also named `Berries`). Fire at the Part's `EntityId`; do not walk into the child.
+
+## CORRECTION (2026-11-07, PROBED): berries DO appear as loose items
+
+The earlier note "no loose berry part appears, so berries go straight to inventory and there is nothing to pick up" was **wrong**. It was written from one sample taken before any berry had landed.
+
+- `Workspace.<island>.Items` is the loose-item folder and it grows to **72 children**. `ItemId` values seen in it: `Berries`, `BerryPie`, `BerryJam`, `BerryBushSeed`, `Bread`, `Coal`, `Wheat`, `IronIngot`.
+- A berry stack is a **Part** named `Berries` with `ItemId = "Berries"`, `EntityId = "item_<n>"`, and often `Count` on it or on its art children (`Count` values 2, 3, 4, 5, 8, 19 were all seen). `Count = nil` means one.
+- Items **drift toward the player** - one item measured 120.9 studs away and 22.5 studs away minutes later with the player standing still. That is why item counts in `Items` drop on their own; do not read a falling count as your own pickup working.
+- `Items` is also the cheap source of truth for what is loose: ~40-72 children, versus ~28 s for a `workspace:GetDescendants()` scan of this world (47728 instances). **Never scan the whole workspace here.**
+
+## Harvest mechanics measured (2026-11-07, PROBED - the numbers the collector is built on)
 
 This is the section to read before touching any berry script. Every number below came from a
 `matcha_exec` probe in the live game, and the two old scripts (`ABOVE` v5.1.0, `Silent Berries`
-v4.0.0) failed on exactly these three points.
+v4.0.0) failed on exactly these points.
 
 - **The island is much bigger than the old notes say.** `Nodes` held **1281** children with
   **1036 `BerryBush`** and **1034 ripe at once** in this session. Any design that handles one
@@ -58,27 +71,27 @@ v4.0.0) failed on exactly these three points.
 - The character **slides ~2-3 studs** during the settle wait (it is falling). Read the real
   `HumanoidRootPart.Position` AFTER the settle and use that as the cluster centre, not the
   intended warp point.
-- Harvesting sets `HB.Ripe = false` and the `Berries` MeshParts' `Transparency` to 1. **No loose
-  berry part appears**: `<island>.Items` held only `Bread` / `Coal` / `Wheat` (ItemId attribute,
-  plus a numeric `Count` on stacks) for the whole session, so berries go straight to the player's
-  server-side inventory. `RequestPickup` is therefore not needed for berries in practice - keep
-  it only as a guard in case a berry ever does drop.
+- Harvesting sets `HB.Ripe = false` and the `Berries` MeshParts' `Transparency` to 1.
 - **No regrow observed** within ~10 minutes of harvesting; harvested bushes stayed `Ripe = false`
   with `Transparency = 1`. Idle-and-rescan is the correct behaviour, not a tight retry.
 - `leaderstats` holds only `Coins`. There is no client-readable berry count.
-- `island.Items` is the cheap loose-item source: ~30-40 children, versus 16 s for a
-  `workspace:GetDescendants()` scan of this world. **Never scan the whole workspace here.**
 - `HB:GetAttributes()` can return the same attribute name **repeated** (BushCell / CropId / Ripe
   seven times each on one HB). Read by name with `GetAttribute(name)`; never treat the array as
   a map, and never assume one entry per attribute.
+- The pickup input is a **held action**, not a one-shot: `TouchController` calls
+  `InputController.setPickupHeld(true, "button")` and `TargetController.hasPickupTarget()` decides
+  whether the pickup button shows. So the legitimate route is "hold pickup while a target is in
+  reach"; the remote route above is the shortcut that skips the input layer entirely.
 
 ## Open questions (need a dump)
 
 - Whether harvesting also needs an equipped tool plus `RequestSwing` on top of `RequestHarvest` (it has worked without one, so probably not). The game's own `TargetController` maps a `BushCell` part to `"Axe"` or `"Pickaxe"`, yet a bare `RequestHarvest` from a player with an empty Backpack was accepted - so the server does not enforce the tool.
 - What `HB`'s `BushCell` value actually is - observed as a string like `3,0,7` / `1,0,4` / `12,0,8`. It is a grid cell, `cell * 3 = world position`.
 - The exact regrow time. Not observed in ~10 minutes.
+- Why a pickup fire is dropped at one distance and accepted at another. Suspected burst dropping rather than a radius, but not proven.
 
 ## Blockers hit
 
 - A `Workspace` scan for `Name == 'BerryBush'` returned nothing in one probe while `GetDescendants()` had just listed 63 of them - treat an empty node scan as a failed call and re-probe by island path before concluding anything. Same for `islands 0`: the island model is not always present (respawn / island load), so a probe that finds no island proves nothing about the game.
 - `task.wait` in a `matcha_exec` chunk longer than ~0.3 s closes the output capture, so a probe that fires then waits then reports loses its own result. Read `matcha_logs` for the tail instead of re-running the probe.
+- A single sample of `island.Items` taken before anything had dropped led to the wrong conclusion that berries never drop. **A folder that is empty now is not a folder that stays empty** - re-check it after the action that is supposed to fill it, before writing the conclusion down.
