@@ -29,11 +29,56 @@ Place id `124357835578554`. `game.Name` reports `Ugc` (the creator group), so ma
 - Consequence: a "silent" cross-map farm is impossible for this game. The only honest route is to move the character to each bush / berry (warp via `HumanoidRootPart.CFrame`), fire, and warp back when idle - which is what `ABOVE` v5.x does.
 - `RequestPickup` responds to repeated fires on the same part, so retrying a few times per item at close range is worth doing.
 
+## Harvest mechanics measured (date unknown, PROBED - the numbers the collector is built on)
+
+This is the section to read before touching any berry script. Every number below came from a
+`matcha_exec` probe in the live game, and the two old scripts (`ABOVE` v5.1.0, `Silent Berries`
+v4.0.0) failed on exactly these three points.
+
+- **The island is much bigger than the old notes say.** `Nodes` held **1281** children with
+  **1036 `BerryBush`** and **1034 ripe at once** in this session. Any design that handles one
+  bush per tick is ~150x too slow; that is what "isn't very functional" meant.
+- **`BushCell` is a grid coordinate and `BushCell * 3` is the bush's world position.** Cell
+  `-4,2,0` -> `-12, 206.5, 3000`. The bushes sit on a **3-stud grid**, so a 17-stud radius
+  covers roughly 100 bushes and one warp can harvest a whole cluster. Bushes never move, so
+  cache positions; only `Ripe` needs re-reading.
+- **`RequestHarvest` reach is 18 studs** measured from `HumanoidRootPart` (3D magnitude; the
+  game's own `Shared.Config.Player.InteractReachStuds` is what the client compares against).
+  Measured: 16.84 and 17.54 harvested; **18.07 and 18.75 did not**, silently - no error, no
+  attribute change. A radius of 17 is safe.
+- **The server drops bursts of fires.** Same standing position, same range, every fire aimed at
+  a different ripe bush in range: **92 fired in one frame -> 22 harvested**; **20 fired 0.05 s
+  apart -> 19**; **30 fired 0.02 s apart -> 26**. So it is not a per-second cap, it is a
+  per-batch one, and **0.05 s is the measured sweet spot** (~95-100%). Firing the whole cluster
+  in one frame is the single biggest reason a cluster-based collector looks broken.
+- **A warp needs a settle wait before firing, or the server still has your old position.**
+  Warp 40 studs, `task.wait(0.30)`, then fire 12 at 0.05 s gaps -> **12/12 harvested**. Warp and
+  fire in the same frame -> **0/1**. `Silent Berries` settled 0.06 s and `ABOVE` v5.1.0 did not
+  settle at all; that is the second big reason they under-performed.
+- The character **slides ~2-3 studs** during the settle wait (it is falling). Read the real
+  `HumanoidRootPart.Position` AFTER the settle and use that as the cluster centre, not the
+  intended warp point.
+- Harvesting sets `HB.Ripe = false` and the `Berries` MeshParts' `Transparency` to 1. **No loose
+  berry part appears**: `<island>.Items` held only `Bread` / `Coal` / `Wheat` (ItemId attribute,
+  plus a numeric `Count` on stacks) for the whole session, so berries go straight to the player's
+  server-side inventory. `RequestPickup` is therefore not needed for berries in practice - keep
+  it only as a guard in case a berry ever does drop.
+- **No regrow observed** within ~10 minutes of harvesting; harvested bushes stayed `Ripe = false`
+  with `Transparency = 1`. Idle-and-rescan is the correct behaviour, not a tight retry.
+- `leaderstats` holds only `Coins`. There is no client-readable berry count.
+- `island.Items` is the cheap loose-item source: ~30-40 children, versus 16 s for a
+  `workspace:GetDescendants()` scan of this world. **Never scan the whole workspace here.**
+- `HB:GetAttributes()` can return the same attribute name **repeated** (BushCell / CropId / Ripe
+  seven times each on one HB). Read by name with `GetAttribute(name)`; never treat the array as
+  a map, and never assume one entry per attribute.
+
 ## Open questions (need a dump)
 
-- Whether harvesting also needs an equipped tool plus `RequestSwing` on top of `RequestHarvest` (it has worked without one, so probably not).
-- What `HB`'s `BushCell` value actually is - observed as a string like `3,0,7` / `1,0,4` / `12,0,8`.
+- Whether harvesting also needs an equipped tool plus `RequestSwing` on top of `RequestHarvest` (it has worked without one, so probably not). The game's own `TargetController` maps a `BushCell` part to `"Axe"` or `"Pickaxe"`, yet a bare `RequestHarvest` from a player with an empty Backpack was accepted - so the server does not enforce the tool.
+- What `HB`'s `BushCell` value actually is - observed as a string like `3,0,7` / `1,0,4` / `12,0,8`. It is a grid cell, `cell * 3 = world position`.
+- The exact regrow time. Not observed in ~10 minutes.
 
 ## Blockers hit
 
 - A `Workspace` scan for `Name == 'BerryBush'` returned nothing in one probe while `GetDescendants()` had just listed 63 of them - treat an empty node scan as a failed call and re-probe by island path before concluding anything. Same for `islands 0`: the island model is not always present (respawn / island load), so a probe that finds no island proves nothing about the game.
+- `task.wait` in a `matcha_exec` chunk longer than ~0.3 s closes the output capture, so a probe that fires then waits then reports loses its own result. Read `matcha_logs` for the tail instead of re-running the probe.
