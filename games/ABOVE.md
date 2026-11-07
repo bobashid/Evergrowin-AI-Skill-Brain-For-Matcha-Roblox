@@ -40,7 +40,21 @@ The earlier note "no loose berry part appears, so berries go straight to invento
 - `Workspace.<island>.Items` is the loose-item folder and it grows to **72 children**. `ItemId` values seen in it: `Berries`, `BerryPie`, `BerryJam`, `BerryBushSeed`, `Bread`, `Coal`, `Wheat`, `IronIngot`.
 - A berry stack is a **Part** named `Berries` with `ItemId = "Berries"`, `EntityId = "item_<n>"`, and often `Count` on it or on its art children (`Count` values 2, 3, 4, 5, 8, 19 were all seen). `Count = nil` means one.
 - Items **drift toward the player** - one item measured 120.9 studs away and 22.5 studs away minutes later with the player standing still. That is why item counts in `Items` drop on their own; do not read a falling count as your own pickup working.
-- `Items` is also the cheap source of truth for what is loose: ~40-72 children, versus ~28 s for a `workspace:GetDescendants()` scan of this world (47728 instances). **Never scan the whole workspace here.**
+- `Items` is also the cheap source of truth for what is loose: ~40-72 children, versus ~28 s for a `workspace:GetDescendants()` scan of this world (47992 instances). **Never scan the whole workspace here.**
+
+## No ProximityPrompt on bushes or items (2026-11-07, PROBED)
+
+- A full `workspace:GetDescendants()` sweep found **167 `ProximityPrompt` instances and every one is on a machine**: `WheatHarvester` x80, `Bakehouse` x24, `OutputChest` x16, `Toolsmith` x11, `CoalHarvesterI` x11, `IronHarvesterI` x4, `OverflowChest` x4, `Fabricator` x3, `Workbench` x2, `Furnace` x2, `WoodHarvesterI` x2, plus `BuilderBench`, `CookingStation`, `IndustrialFurnace`, `InputChest`, `Recycler`, `StoneHarvesterI`, `HUB.HB` and `IronRailcart.HB`.
+- **Zero prompts sit under `Nodes` or `Items`**, so there is nothing to `fireproximityprompt` for a berry. The "prompt on the berry bush" the user reports is the game's own HUD hint driven by `TargetController.hasPickupTarget()`, not a DataModel prompt. Do not spend another session hunting for a prompt instance.
+- `RequestSwing` with an **empty Backpack does nothing** (fired 3x at a ripe bush, `Ripe` stayed `true`). The game's `TargetController` maps a `BushCell` part to `"Axe"` or `"Pickaxe"`, so a legitimate harvest needs a tool in hand; the remote `RequestHarvest` is the only route that works bare.
+
+## Verify every fire - `GAP = 0.05` is ~95%, not 100% (2026-11-07, measured + user report)
+
+- Measured: **20 harvest fires 0.05 s apart -> 19 harvested**, and **30 at 0.02 s -> 26**. The drop is per-batch, not per-second.
+- Marking a bush "done" the instant you fire it is therefore **wrong**: ~1 in 20 silently missed and never came back until the regrow cycle happened to reach it. That is exactly what "still happening but not that much anymore" looked like from the user's side.
+- Correct shape: fire the cluster, `task.wait(0.3)`, then **re-read `HB.Ripe` for exactly the bushes you fired at**. Still `true` -> put it back in the queue and retry (cap at 3 attempts, then park it so one stubborn bush cannot spin). Flipped `false` -> done, and reset its attempt counter.
+- Same rule for pickup: after `FireServer(entityId)`, check the Part is still parented; if it is, fire once more before moving on.
+- This is the existing RM3 rule ("verify by reading state back, never by assuming") applied to a remote with a measured drop rate.
 
 ## Harvest mechanics measured (2026-11-07, PROBED - the numbers the collector is built on)
 
@@ -49,8 +63,10 @@ This is the section to read before touching any berry script. Every number below
 v4.0.0) failed on exactly these points.
 
 - **The island is much bigger than the old notes say.** `Nodes` held **1281** children with
-  **1036 `BerryBush`** and **1034 ripe at once** in this session. Any design that handles one
-  bush per tick is ~150x too slow; that is what "isn't very functional" meant.
+  **1036 `BerryBush`** and **1034 ripe at once**, and later **1328 `BerryBush` with 612 ripe** as
+  the island upgraded. Any design that handles one bush per tick is ~150x too slow.
+- **The bush count CHANGES while you play.** 1036 -> 1328 in one session. A cached bush list must
+  be rebuilt when the live count differs, or every bush added after load is invisible forever.
 - **`BushCell` is a grid coordinate and `BushCell * 3` is the bush's world position.** Cell
   `-4,2,0` -> `-12, 206.5, 3000`. The bushes sit on a **3-stud grid**, so a 17-stud radius
   covers roughly 100 bushes and one warp can harvest a whole cluster. Bushes never move, so
@@ -62,8 +78,7 @@ v4.0.0) failed on exactly these points.
 - **The server drops bursts of fires.** Same standing position, same range, every fire aimed at
   a different ripe bush in range: **92 fired in one frame -> 22 harvested**; **20 fired 0.05 s
   apart -> 19**; **30 fired 0.02 s apart -> 26**. So it is not a per-second cap, it is a
-  per-batch one, and **0.05 s is the measured sweet spot** (~95-100%). Firing the whole cluster
-  in one frame is the single biggest reason a cluster-based collector looks broken.
+  per-batch one, and **0.05 s is the measured sweet spot** (~95-100%).
 - **A warp needs a settle wait before firing, or the server still has your old position.**
   Warp 40 studs, `task.wait(0.30)`, then fire 12 at 0.05 s gaps -> **12/12 harvested**. Warp and
   fire in the same frame -> **0/1**. `Silent Berries` settled 0.06 s and `ABOVE` v5.1.0 did not
@@ -72,9 +87,10 @@ v4.0.0) failed on exactly these points.
   `HumanoidRootPart.Position` AFTER the settle and use that as the cluster centre, not the
   intended warp point.
 - Harvesting sets `HB.Ripe = false` and the `Berries` MeshParts' `Transparency` to 1.
-- **No regrow observed** within ~10 minutes of harvesting; harvested bushes stayed `Ripe = false`
-  with `Transparency = 1`. Idle-and-rescan is the correct behaviour, not a tight retry.
-- `leaderstats` holds only `Coins`. There is no client-readable berry count.
+- **Regrow DOES happen** - one cycle moved 12 bushes back to ripe. It is slow enough that an
+  idle-and-rescan design is correct, but a queue gated on "empty" will deadlock (see below).
+- `leaderstats` holds only `Coins`. There is no client-readable berry count, so a harvest's
+  payout cannot be measured from the client - only the `Ripe` flip can.
 - `HB:GetAttributes()` can return the same attribute name **repeated** (BushCell / CropId / Ripe
   seven times each on one HB). Read by name with `GetAttribute(name)`; never treat the array as
   a map, and never assume one entry per attribute.
@@ -83,11 +99,22 @@ v4.0.0) failed on exactly these points.
   whether the pickup button shows. So the legitimate route is "hold pickup while a target is in
   reach"; the remote route above is the shortcut that skips the input layer entirely.
 
+## The deadlock that froze v7.1.0 (2026-11-07, diagnosed from the user's own log line)
+
+- The script printed `queued 1` while the island had **612 ripe bushes**. Cause: the regrow /
+  re-check pass only ran when the work queue was **empty**, so a single bush it could not reach
+  parked the queue at 1 forever, and the ~1030 bushes already marked done were never re-examined.
+- Rule: **a periodic re-check must never be gated on another queue being empty.** Gate it on a
+  timer instead. An idle-looking script that still reports counters is the signature - the
+  counters kept rising while the work queue was stuck at 1.
+
 ## Open questions (need a dump)
 
-- Whether harvesting also needs an equipped tool plus `RequestSwing` on top of `RequestHarvest` (it has worked without one, so probably not). The game's own `TargetController` maps a `BushCell` part to `"Axe"` or `"Pickaxe"`, yet a bare `RequestHarvest` from a player with an empty Backpack was accepted - so the server does not enforce the tool.
+- Whether `RequestHarvest` actually pays out berries or only clears `Ripe`. `RequestSwing` with an
+  empty Backpack does nothing, and there is no client-readable berry count, so this needs the
+  user to look at their inventory after a remote harvest.
 - What `HB`'s `BushCell` value actually is - observed as a string like `3,0,7` / `1,0,4` / `12,0,8`. It is a grid cell, `cell * 3 = world position`.
-- The exact regrow time. Not observed in ~10 minutes.
+- The exact regrow time. Not measured.
 - Why a pickup fire is dropped at one distance and accepted at another. Suspected burst dropping rather than a radius, but not proven.
 
 ## Blockers hit
